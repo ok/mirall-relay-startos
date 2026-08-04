@@ -1,0 +1,3 @@
+[submodule "mirall-relay"]
+	path = mirall-relay
+	url = https://github.com/ok/mirall-relay.git

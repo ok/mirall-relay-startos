@@ -1,0 +1,11 @@
+*.s9pk
+startos/*.js
+node_modules/
+.DS_Store
+.vscode/
+docker-images
+javascript
+ncc-cache
+
+# Packaging knowledge base, checked out alongside this repo for AI agents.
+ai-service-packaging
