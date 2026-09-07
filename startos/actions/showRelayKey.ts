@@ -19,7 +19,7 @@ async function deriveFromSeed(effects: T.Effects): Promise<string> {
       const res = await sub.execFail([nodeBin, '-e', prepareIdentityScript], {
         user: 'root',
       })
-      return `${res.stdout}`.trim()
+      return res.stdout.toString().trim()
     },
   )
 }

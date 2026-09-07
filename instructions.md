@@ -42,6 +42,8 @@ The relay's identity is a seed file on this server, and its public key — the o
 
 Back this service up. If you lose the seed, everyone who added this relay has to be given a new key.
 
+The same applies to uninstalling: it deletes the seed, and with it the public key. Anyone who added this relay in Mirall is left holding a key that no longer resolves to anything.
+
 ## Running it for other people
 
 The relay is open to anyone by default, which is the normal way to run one. Bandwidth is the cost: every relayed byte comes in and goes out again.

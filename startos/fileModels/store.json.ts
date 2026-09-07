@@ -1,7 +1,7 @@
 import { FileHelper, z } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
-const shape = z.object({
+const shape = z.looseObject({
   // Derived from the seed on install, cached so the key can be shown while the
   // service is stopped. The seed itself never leaves the container.
   publicKey: z.string().catch(''),
