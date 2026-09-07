@@ -7,5 +7,3 @@ docker-images
 javascript
 ncc-cache
 
-# Packaging knowledge base, checked out alongside this repo for AI agents.
-ai-service-packaging

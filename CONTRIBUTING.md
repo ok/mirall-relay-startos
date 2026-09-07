@@ -6,6 +6,8 @@ This repo packages [mirall-relay](https://github.com/ok/mirall-relay) for StartO
 
 - **`README.md`** — how this package differs from running mirall-relay under Docker. For developers and AI assistants.
 - **`instructions.md`** — the user-facing instructions packed into the `.s9pk` and shown on the **Instructions** tab in StartOS.
+- **`UPDATING.md`** — how to bump the pinned upstream version, and what to re-verify when you do.
+- **`AGENTS.md`** — context for AI assistants working in this repo.
 - **`CONTRIBUTING.md`** — this file.
 
 **Any code change that warrants it must update `README.md` and `instructions.md` in the same change** — a new or renamed action, an added or removed volume / port / interface / dependency, a changed default, a new limitation, any altered user-visible behavior.
@@ -18,8 +20,14 @@ See the [StartOS Packaging Guide](https://docs.start9.com/packaging/) for enviro
 git submodule update --init   # fetch the upstream source
 npm ci                        # install dependencies
 make                          # build .s9pk for x86_64 and aarch64
-make install                  # sideload to the server in ~/.startos/config.yaml
+make install                  # sideload to the workspace's default host
 ```
+
+The build plumbing comes from the SDK — `Makefile` includes
+`node_modules/@start9labs/start-sdk/s9pk.mk`, and `tsconfig.json` extends
+`@start9labs/start-sdk/tsconfig.base.json`, so bumping the SDK delivers build-system fixes too.
+`make install` and `make publish` resolve the host and registry through `start-cli` — the
+`host` / `registry` profiles in the packaging workspace's `.startos/config.yaml`, or `-H` / `-r`.
 
 `ARCHES` is `x86 arm`: upstream's Dockerfile keeps only the prebuilt Holepunch addons matching `TARGETARCH` and rejects anything but amd64/arm64, so riscv64 is not buildable.
 
@@ -39,14 +47,7 @@ The relay's job is to be reachable from the internet, and neither `npm run check
 
 ## Updating the upstream version
 
-1. Update the submodule: `git -C mirall-relay fetch && git -C mirall-relay checkout <tag>`, then commit the new pointer.
-2. Add a version file under `startos/versions/` for the new upstream version, reset the downstream revision to 0, and point `versionGraph` at it — see [Versions](https://docs.start9.com/packaging/versions.html).
-3. Re-check the assumptions this package makes about the image, since they are not enforced by the build:
-   - the runtime user is still uid 65532 (`startos/utils.ts`),
-   - `node` is still at `/nodejs/bin/node`,
-   - `src/keys.js` still exports `loadOrCreateSeed`, `keyPairFromSeed` and `publicKeyZ32`,
-   - `/readyz` still returns `{ ready, firewalled, publicKey }`.
-4. Rebuild, sideload, and walk the test steps above.
+See [UPDATING.md](UPDATING.md).
 
 ## How to contribute
 
