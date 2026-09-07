@@ -20,7 +20,7 @@ export const initializeService = sdk.setupOnInit(async (effects, kind) => {
       const res = await sub.execFail([nodeBin, '-e', prepareIdentityScript], {
         user: 'root',
       })
-      return `${res.stdout}`.trim()
+      return res.stdout.toString().trim()
     },
   )
 

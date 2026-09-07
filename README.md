@@ -89,8 +89,10 @@ publish the printed public key. This package does that for you:
    creating the seed if there is none — and caches the public key in
    `store.json`, so the key is known before the relay has ever started.
 2. A **critical task** prompts you to run *Show Relay Public Key*.
-3. The install alert states the port-forwarding requirement and the consequence
-   of losing the seed.
+3. `instructions.md` — the **Instructions** tab in StartOS — states the
+   port-forwarding requirement and the consequence of losing the seed. StartOS
+   0.4.0 has no per-package lifecycle alerts, so that is where those warnings
+   live.
 
 There is no admin account, no password, and no first-run wizard: the relay's
 public key is its whole identity, and it is meant to be published.

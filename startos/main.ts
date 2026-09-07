@@ -75,7 +75,7 @@ async function checkReachability(): Promise<HealthResult> {
 export const main = sdk.setupMain(async ({ effects }) => {
   const store = await storeJson.read((s) => s).const(effects)
 
-  const relaySub = await sdk.SubContainer.of(
+  const relaySub = sdk.SubContainer.of(
     effects,
     { imageId: 'mirall-relay' },
     relayMounts,
