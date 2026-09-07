@@ -7,6 +7,9 @@ on:
 
 jobs:
   release:
+    # Same gate as tagAndRelease: a manually pushed tag must not publish
+    # until a release registry is configured.
+    if: vars.RELEASE_REGISTRY != ''
     uses: Start9Labs/start-technologies/.github/workflows/release.yml@master
     with:
       RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
