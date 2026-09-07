@@ -1,5 +1,10 @@
 <p align="center">
-  <img src="icon.png" alt="Mirall Logo" width="21%">
+  <a href="https://mirall.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
+      <img src="docs/media/logo-light.svg" width="240" alt="Mirall">
+    </picture>
+  </a>
 </p>
 
 # Mirall Relay on StartOS
