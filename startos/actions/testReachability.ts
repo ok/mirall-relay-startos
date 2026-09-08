@@ -31,7 +31,7 @@ export const testReachability = sdk.Action.withoutInput(
   }),
 
   async () => {
-    const { ready, firewalled } = await fetchReadyz()
+    const { ready, firewalled, probed } = await fetchReadyz()
     const res = await fetch(`${adminBaseUrl}/.well-known/mirall-relay.json`, {
       signal: AbortSignal.timeout(3000),
     })
@@ -43,7 +43,11 @@ export const testReachability = sdk.Action.withoutInput(
         ? i18n(
             'Firewalled: peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.',
           )
-        : i18n('Reachable: the relay is bridging connections.')
+        : probed === false
+          ? i18n(
+              'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.',
+            )
+          : i18n('Reachable: the relay is bridging connections.')
 
     return {
       version: '1' as const,
@@ -65,7 +69,12 @@ export const testReachability = sdk.Action.withoutInput(
             type: 'single' as const,
             name: i18n('Reachable from the internet'),
             description: null,
-            value: firewalled === false ? i18n('Yes') : i18n('No'),
+            value:
+              firewalled === false
+                ? probed === false
+                  ? i18n('Assumed — not measured')
+                  : i18n('Yes')
+                : i18n('No'),
             masked: false,
             copyable: false,
             qr: false,

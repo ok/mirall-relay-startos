@@ -45,7 +45,6 @@ const dict = {
   Limits: 36,
 
   // init/initializeService.ts
-  'Copy the relay’s public key — it is how anyone tells Mirall to use this relay': 37,
 
   // interfaces.ts
   'Relay Endpoint': 38,
@@ -62,6 +61,9 @@ const dict = {
   'Internet Reachability': 47,
   'Status Page': 48,
   'The relay’s public key with a QR code, whether peers can reach it, and the traffic it has carried': 49,
+  'Running, but reachability was asserted rather than measured — "Assume Reachable" is on. Confirm it from another machine.': 50,
+  'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.': 51,
+  'Assumed — not measured': 52,
 } as const
 
 /**

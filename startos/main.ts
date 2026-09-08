@@ -49,12 +49,22 @@ function relayEnv(store: StoreShape | null): Record<string, string> {
 // home server behind an unforwarded router fails.
 async function checkReachability(): Promise<HealthResult> {
   try {
-    const { ready, firewalled } = await fetchReadyz()
+    const { ready, firewalled, probed } = await fetchReadyz()
     if (ready && firewalled === false) {
-      return {
-        result: 'success',
-        message: i18n('Peers on the internet can reach this relay'),
-      }
+      // `firewalled: false` is forced by ASSUME_REACHABLE, so on its own it is
+      // not evidence. Saying "peers can reach this relay" on an unprobed node
+      // is the overstatement this check existed to avoid.
+      return probed === false
+        ? {
+            result: 'success',
+            message: i18n(
+              'Running, but reachability was asserted rather than measured — "Assume Reachable" is on. Confirm it from another machine.',
+            ),
+          }
+        : {
+            result: 'success',
+            message: i18n('Peers on the internet can reach this relay'),
+          }
     }
     if (firewalled) {
       return {

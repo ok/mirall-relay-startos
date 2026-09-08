@@ -61,6 +61,10 @@ import('/app/src/keys.js')
 export type ReadyzBody = {
   ready: boolean
   firewalled: boolean | null
+  // False when MIRALL_RELAY_ASSUME_REACHABLE forced `firewalled` rather than
+  // hyperdht measuring it. Without this, `firewalled: false` reads as a verdict
+  // when it may only be an assertion.
+  probed: boolean
   publicKey: string
 }
 

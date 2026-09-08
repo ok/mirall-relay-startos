@@ -2,10 +2,10 @@ import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
   // <upstream version>:<package revision>
-  version: '0.1.0:1',
+  version: '0.1.0:2',
   releaseNotes: {
     en_US:
-      'Adds a status page: the relay public key with a copy button and a QR code, whether peers can reach it in plain language, and the live traffic counters.',
+      'Removes the first-run task that blocked startup until the public key was viewed — Actions shows it at any time. Reachability now says when it was asserted rather than measured. Adds a status page: the relay public key with a copy button and a QR code, whether peers can reach it in plain language, and the live traffic counters.',
     es_ES:
       'Añade una página de estado: la clave pública del relé con botón de copia y código QR, si los pares pueden alcanzarlo explicado con claridad, y los contadores de tráfico en vivo.',
     de_DE:
