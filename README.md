@@ -2,18 +2,17 @@
   <a href="https://mirall.app">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
-      <img src="docs/media/logo-light.svg" width="240" alt="Mirall">
+      <img src="docs/media/logo-light.svg" width="240" alt="Mirall Logo">
     </picture>
   </a>
 </p>
 
 # Mirall Relay on StartOS
 
-> **Upstream docs:** <https://github.com/ok/mirall-relay/blob/main/README.md> and [OPERATIONS.md](https://github.com/ok/mirall-relay/blob/main/OPERATIONS.md)
->
 > Everything not listed in this document should behave the same as upstream
-> mirall-relay 0.1.0. If a feature, setting, or behavior is not mentioned here,
-> the upstream documentation is accurate and fully applicable.
+> mirall-relay. If a feature, setting, or behavior is not mentioned here, the
+> upstream documentation is accurate and fully applicable — see the
+> Documentation section of `instructions.md` for links.
 
 A blind relay for [Mirall](https://mirall.app): it bridges two already-encrypted
 streams between peers that cannot hole-punch to each other, and can read neither
@@ -30,47 +29,56 @@ Reachability* health check fails and nothing is relayed.
 
 - [Image and Container Runtime](#image-and-container-runtime)
 - [Volume and Data Layout](#volume-and-data-layout)
-- [Installation and First-Run Flow](#installation-and-first-run-flow)
-- [Configuration Management](#configuration-management)
+- [File Models](#file-models)
+- [Dependencies](#dependencies)
 - [Network Access and Interfaces](#network-access-and-interfaces)
-- [Actions (StartOS UI)](#actions-startos-ui)
-- [Backups and Restore](#backups-and-restore)
+- [Installation and First-Run Flow](#installation-and-first-run-flow)
+- [Actions](#actions)
+- [Tasks](#tasks)
 - [Health Checks](#health-checks)
+- [Backups and Restore](#backups-and-restore)
 - [Limitations and Differences](#limitations-and-differences)
-- [What Is Unchanged from Upstream](#what-is-unchanged-from-upstream)
-- [Contributing](#contributing)
 - [Quick Reference for AI Consumers](#quick-reference-for-ai-consumers)
 
 ---
 
 ## Image and Container Runtime
 
-| Property      | Value                                                       |
-| ------------- | ----------------------------------------------------------- |
-| Image         | Built from the upstream `Dockerfile` (git submodule)         |
-| Architectures | x86_64, aarch64                                              |
-| Base          | `gcr.io/distroless/nodejs22-debian12:nonroot`, unmodified    |
-| Entrypoint    | Upstream's — `node bin/mirall-relay.js` via `useEntrypoint()` |
-| Runtime user  | uid 65532 (`nonroot`), as upstream intends                   |
+The package builds upstream's own Dockerfile from a pinned git submodule rather
+than pulling a published image, so the relay binary and its runtime are
+upstream's, unmodified.
 
-Upstream's CI builds the image but does not push it, so there is no
-`ghcr.io/ok/mirall-relay` tag to pull; this package builds the same Dockerfile
-from the pinned submodule instead.
+| Property      | Value                                                        |
+| ------------- | ------------------------------------------------------------ |
+| Image         | Built from the upstream `Dockerfile` (git submodule)          |
+| Architectures | x86_64, aarch64                                               |
+| Base          | Upstream's distroless Node base, unmodified                   |
+| Entrypoint    | Upstream's — `node bin/mirall-relay.js` via `useEntrypoint()`  |
+| Runtime user  | uid 65532 (`nonroot`), as upstream intends                    |
 
-The image is distroless — no shell, no coreutils. Every in-container helper this
-package needs is therefore a `node -e` one-liner rather than a shell command.
+The service runs in one long-lived subcontainer, **`mirall-relay-sub`** — the one
+to attach to on a running install. Two short-lived subcontainers also appear:
+`init-identity` during install and restore, and `show-relay-key` when that action
+has to derive the key from the seed. Neither outlives its task.
+
+The base is distroless — no shell, no coreutils. Every in-container helper this
+package needs is therefore a `node -e` one-liner rather than a shell command, and
+attaching to a subcontainer gives you Node rather than a prompt.
 
 ## Volume and Data Layout
 
-| Path              | Contents                                                     |
-| ----------------- | ------------------------------------------------------------ |
-| `/data`           | The `main` volume                                            |
-| `/data/seed`      | The relay identity. 64-hex, mode 0600, owned by uid 65532    |
-| `/data/store.json`| StartOS-side settings and a cached copy of the public key     |
+One volume holds everything durable: the relay's identity and the package's own
+settings.
+
+| Path               | Contents                                                   |
+| ------------------ | ---------------------------------------------------------- |
+| `/data`            | The `main` volume                                          |
+| `/data/seed`       | The relay identity. 64-hex, mode 0600, owned by uid 65532  |
+| `/data/store.json` | StartOS-side settings and a cached copy of the public key   |
 
 `/data/seed` is the only secret and the only durable state upstream has. Its
 public key is the relay's address, so losing the seed strands every client
-configured with it — see [Backups](#backups-and-restore).
+configured with it — see [Backups and Restore](#backups-and-restore).
 
 A StartOS volume is mounted owned by root, but the image runs as uid 65532. A
 `prepare-identity` oneshot runs as root before the relay starts and hands `/data`
@@ -80,53 +88,43 @@ after a restore.
 `MIRALL_RELAY_SEED_SECRET_FILE` is left at its upstream default. Nothing is
 mounted at `/run/secrets/relay_seed`, so the seed file is authoritative.
 
-## Installation and First-Run Flow
+## File Models
 
-Upstream expects an operator to run `mirall-relay keygen`, store the seed, and
-publish the printed public key. This package does that for you:
+The package owns one file, `store.json`, and writes no upstream configuration at
+all — every upstream option is delivered as an environment variable instead.
 
-1. On install (and on restore), init derives the identity inside the container —
-   creating the seed if there is none — and caches the public key in
-   `store.json`, so the key is known before the relay has ever started.
-2. A **critical task** prompts you to run *Show Relay Public Key*.
-3. `instructions.md` — the **Instructions** tab in StartOS — states the
-   port-forwarding requirement and the consequence of losing the seed. StartOS
-   0.4.0 has no per-package lifecycle alerts, so that is where those warnings
-   live.
+**`/data/store.json`** (JSON, on the `main` volume) holds StartOS-side state: the
+cached public key plus every setting exposed by *Configure Relay*. It is seeded
+during init with the derived public key, and rewritten whenever *Configure Relay*
+is saved. *Show Relay Public Key* also writes back to it if it had to derive the
+key from the seed because the cache was empty.
 
-There is no admin account, no password, and no first-run wizard: the relay's
-public key is its whole identity, and it is meant to be published.
+Ownership splits cleanly. The configuration keys — region, operator, caps,
+allowlist, banlist, log level, assume-reachable — belong to you: nothing
+re-asserts them, and they persist until you change them again. The `publicKey`
+key belongs to the package; it is derived from the seed and re-derived whenever
+it is missing, so overwriting it by hand is pointless rather than harmful.
 
-## Configuration Management
+A hand edit to `store.json` survives on disk, but **it does not reach a running
+relay**. Upstream reads its configuration only from the environment, and this
+package builds that environment from `store.json` once, when the daemon starts. A
+hand edit therefore takes effect on the next service restart and not before; use
+*Configure Relay*, which restarts the relay for you.
 
-Every upstream option is a `MIRALL_RELAY_*` environment variable, so nothing is
-configured by file. The ones this package pins, and the ones it hands to you:
+## Dependencies
 
-| Setting                             | Managed by | Value / notes                                       |
-| ----------------------------------- | ---------- | --------------------------------------------------- |
-| `MIRALL_RELAY_SEED_FILE`            | StartOS    | `/data/seed`                                        |
-| `MIRALL_RELAY_PORT`                 | StartOS    | `49737`, pinned so the bind and firewall rules match |
-| `MIRALL_RELAY_ADMIN_HOST` / `_PORT` | StartOS    | `127.0.0.1:9200`, never exported                    |
-| `MIRALL_RELAY_REGION` / `_OPERATOR` | You        | *Configure Relay*                                   |
-| `MIRALL_RELAY_ASSUME_REACHABLE`     | You        | *Configure Relay*, off by default                   |
-| `MIRALL_RELAY_MAX_ACTIVE_LINKS`     | You        | *Configure Relay*, default 2000                     |
-| `MIRALL_RELAY_MAX_SESSIONS_PER_KEY` | You        | *Configure Relay*, default 64                       |
-| `MIRALL_RELAY_MAX_LINK_RATE`        | You        | *Configure Relay*, default 4MiB                     |
-| `MIRALL_RELAY_MAX_LINK_BYTES`       | You        | *Configure Relay*, default 512MB                    |
-| `MIRALL_RELAY_ALLOWLIST` / `_BANLIST` | You      | *Configure Relay*, unset by default                 |
-| `MIRALL_RELAY_LOG_LEVEL`            | You        | *Configure Relay*, default `info`                   |
-
-Upstream's remaining knobs (`--bootstrap`, `--ephemeral`, `--max-link-ms`,
-`--max-pending`, `--session-rate`, `--over-rate-grace-ms`, `--meter-ms`) are left
-at their defaults and are not exposed. Saving *Configure Relay* restarts the
-relay; the identity is unaffected.
+None. The relay talks to the public HyperDHT and to its peers, and needs no other
+service on the server.
 
 ## Network Access and Interfaces
 
-| Interface        | Port      | Protocol      | Exported |
-| ---------------- | --------- | ------------- | -------- |
-| `relay`          | 49737/udp | Noise (raw)   | Yes      |
-| admin / metrics  | 9200/tcp  | HTTP          | No       |
+One interface is exported — the UDP port peers dial. The operator surface is
+deliberately not exported.
+
+| Interface       | Id      | Type | Port      | Protocol    | Exported |
+| --------------- | ------- | ---- | --------- | ----------- | -------- |
+| Relay Endpoint  | `relay` | api  | 49737/udp | Noise (raw) | Yes      |
+| admin / metrics | —       | —    | 9200/tcp  | HTTP        | No       |
 
 The relay interface is bound with no protocol and `secure: { ssl: false }` — the
 same shape StartOS uses for ssh: encrypted by the protocol itself, not by TLS, so
@@ -145,43 +143,105 @@ this package keeps it on container loopback, where only the health checks and
 actions can reach it. It is deliberately not available for Prometheus scraping
 from another host.
 
-## Actions (StartOS UI)
+## Installation and First-Run Flow
 
-| Action                      | Availability | Input | Output                                                     |
-| --------------------------- | ------------ | ----- | ---------------------------------------------------------- |
-| **Show Relay Public Key**   | Any status   | None  | The z-base-32 key, copyable and as a QR code                |
-| **Test Reachability**       | Only running | None  | Firewalled or not, plus the advertised version and limits   |
-| **Configure Relay**         | Any status   | Form  | Saves to `store.json` and restarts the relay                |
+Upstream expects an operator to run `mirall-relay keygen`, store the seed, and
+publish the printed public key. This package does that for you, and the identity
+exists before the relay has ever started.
 
-*Show Relay Public Key* reads the cached key from `store.json`, falling back to
-deriving it from the seed in a temporary container — so it answers while the
-service is stopped, and after a restore.
+1. On install — and again on restore — init derives the identity inside a
+   temporary container, creating the seed if there is none, and caches the public
+   key in `store.json`. The key is therefore available while the service is still
+   stopped, so you can hand it out while the port forward is still being sorted.
+2. A critical task prompts you to run *Show Relay Public Key*. See
+   [Tasks](#tasks) — it holds the service until you clear it.
+3. `instructions.md` — the **Instructions** tab in StartOS — states the
+   port-forwarding requirement and the consequence of losing the seed. StartOS
+   has no per-package lifecycle alerts, so that is where those warnings live.
 
-## Backups and Restore
+There is no admin account, no password, and no first-run wizard: the relay's
+public key is its whole identity, and it is meant to be published.
 
-`sdk.Backups.ofVolumes('main')` — the whole volume, so both `/data/seed` and
-`/data/store.json`.
+## Actions
 
-**Back this service up.** The seed is not recoverable by any other means, and
-without it the relay comes back with a different public key that no existing
-client is configured for. Restoring re-derives the same key and repairs file
-ownership automatically.
+Three actions, none of them destructive. The relay's identity is never rotated or
+regenerated by any of them.
+
+**Show Relay Public Key** — run it whenever you need the key to paste into
+Mirall, including while the service is stopped. It normally reads the cached
+value from `store.json` and returns instantly; if the cache is empty it spins up
+a temporary container to derive the key from the seed, which takes a few seconds
+and writes the result back. It changes nothing else, never interrupts the running
+relay, and is safe to repeat. Returns the z-base-32 key, copyable and as a QR
+code.
+
+**Test Reachability** — run it when the *Internet Reachability* health check is
+red and you want the underlying detail, or after changing a port forward. It
+queries the relay's own admin endpoint and reports whether HyperDHT considers the
+node firewalled, along with the version and caps the relay advertises to clients.
+Read-only, instant, safe to repeat, and requires the service to be running.
+
+**Configure Relay** — run it to set the operator labels, the traffic caps, the
+allow/ban lists, the log level, or *Assume Reachable*. Saving writes the form to
+`store.json` and **restarts the relay**, which drops in-flight relayed
+connections; clients re-establish, falling back to a direct path where one
+exists. The seed and the public key are untouched, so the relay's address does
+not change. Safe to repeat.
+
+## Tasks
+
+The package creates one task, and it is `critical` — which means it blocks the
+service from starting and suspends the ordinary controls until it is cleared. A
+user reporting "I can't start the relay and there are no buttons" is almost
+certainly looking at it.
+
+| Task                        | Severity | Raised by                  | Cleared by         |
+| --------------------------- | -------- | -------------------------- | ------------------ |
+| Run *Show Relay Public Key* | critical | Install, and every restore | Running the action |
+
+It exists because a relay nobody has the key for is inert: the key is the only
+address the relay has, and handing it out is the one setup step that cannot be
+automated. It is raised on this service's own page, not on another package's. It
+returns after a restore, because a restored instance runs init again — the key is
+the same one as before, so clearing it a second time is a formality.
 
 ## Health Checks
 
-| Check                    | Method                          | Grace  | Meaning                                             |
-| ------------------------ | ------------------------------- | ------ | --------------------------------------------------- |
-| **Relay**                | UDP 49737 listening (`/proc/net`) | 10 s   | The process is up and bound                         |
-| **Internet Reachability** | `GET /readyz` on 127.0.0.1:9200 | 120 s  | 200 means listening, bootstrapped and not firewalled |
+Two checks, kept separate so that a relay which is running but unreachable is
+visibly distinct from one that is not running at all.
 
-*Internet Reachability* reports a **failure** when HyperDHT finds the relay
-firewalled. That is not a packaging bug: a firewalled relay serves 503 on
-`/readyz` upstream too, and bridges nothing. The fix is a UDP port forward — or
-*Assume Reachable*, if the host genuinely has a public IP and the probe is what
-is wrong.
+| Check                     | Method                            | Grace | Meaning                                              |
+| ------------------------- | --------------------------------- | ----- | ---------------------------------------------------- |
+| **Relay**                 | UDP 49737 listening (`/proc/net`) | 10 s  | The process is up and bound                          |
+| **Internet Reachability** | `GET /readyz` on 127.0.0.1:9200   | 120 s | 200 means listening, bootstrapped and not firewalled |
 
-The two checks are separate on purpose, so a relay that is running but
-unreachable is visibly distinct from one that is not running at all.
+**Relay** failing means the process did not start or could not bind — check the
+logs for a configuration error, since upstream refuses to boot on a malformed cap
+or key list rather than starting with a bad value.
+
+**Internet Reachability** failing is the common case and usually not a fault in
+the package. It reports a failure when HyperDHT finds the relay firewalled; a
+firewalled relay serves 503 on `/readyz` upstream too, and bridges nothing. The
+fix is a working UDP port forward — or *Assume Reachable*, if the host genuinely
+has a public IP and it is the probe that is wrong. The long grace period is
+deliberate: the node has to join the DHT and have its address confirmed by other
+nodes before it can know, so red for the first minute or two means nothing.
+
+## Backups and Restore
+
+The strategy is `sdk.Backups.ofVolumes('main')` — the whole volume copied
+wholesale, nothing dumped and replayed. That captures both `/data/seed` and
+`/data/store.json`.
+
+Nothing is deliberately excluded, because nothing on the volume is a cache: the
+relay's sessions, links and meter samples are all in memory and disposable by
+design.
+
+**Back this service up.** The seed is not recoverable by any other means, and
+without it the relay comes back with a different public key that no existing
+client is configured for. A restored instance re-derives the same key, repairs
+file ownership automatically, and needs nothing re-entered — but it does raise the
+setup task again, and the port forward has to exist wherever it now runs.
 
 ## Limitations and Differences
 
@@ -190,9 +250,13 @@ unreachable is visibly distinct from one that is not running at all.
 2. **Symmetric NAT cannot be worked around.** If your router rewrites the port of
    outbound UDP, HyperDHT cannot keep a stable mapping and the relay stays
    unusable. A host with a public IP is the only fix.
-3. **The external port may not be 49737.** StartOS assigns it, preferring 49737
-   but falling back if it is taken. Check the interface in the UI and forward
-   whatever port it actually shows.
+3. **The external port must be 49737, not merely forwarded.** StartOS prefers
+   49737 but falls back to another port if it is already taken, and a fallback
+   cannot work: HyperDHT probes reachability by asking remote nodes to send
+   packets to its *local* socket port at the observed public IP, so an external
+   port that differs can never pass. Check the Relay Endpoint interface after
+   install, and if it did not get 49737, free that port rather than forwarding
+   the one it shows.
 4. **`/metrics` is not scrapable from outside the container.** The admin surface
    is loopback-only; upstream's `deploy/prometheus-scrape.example.yml` assumes a
    sidecar this package does not run.
@@ -205,21 +269,9 @@ unreachable is visibly distinct from one that is not running at all.
 7. **No seed rotation action.** Rotating the seed changes the relay's address and
    strands every configured client, so it is deliberately not a button. To do it
    anyway, uninstall and reinstall.
-
-## What Is Unchanged from Upstream
-
-- The relay binary, its Dockerfile, and its distroless runtime — no patches.
-- The blind-relay guarantee: the relay bridges ciphertext and holds no session
-  key.
-- Every cap, its units, and its per-direction accounting.
-- Access control semantics, including "both peers must be allowlisted" and the
-  automatic ban after repeated cap violations.
-- The admin endpoints and the capability document, byte for byte.
-- The identity model: one seed, one derived ed25519 key, no rotation.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for build and release instructions.
+8. **Upstream's remaining knobs are not exposed.** `--bootstrap`, `--ephemeral`,
+   `--max-link-ms`, `--max-pending`, `--session-rate`, `--over-rate-grace-ms` and
+   `--meter-ms` are left at their upstream defaults and have no form field.
 
 ---
 
@@ -227,16 +279,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build and release instructions.
 
 ```yaml
 package_id: mirall-relay
-upstream_version: 0.1.0
-upstream_repo: https://github.com/ok/mirall-relay
 image: built from upstream Dockerfile (submodule ./mirall-relay)
 architectures: [x86_64, aarch64]
+subcontainers: [mirall-relay-sub]
 volumes:
   main: /data
-ports:
-  relay: 49737 # udp, exported
-  admin: 9200 # tcp, loopback only, not exported
-dependencies: none
+file_models:
+  - store.json
 startos_managed_env_vars:
   - MIRALL_RELAY_SEED_FILE
   - MIRALL_RELAY_PORT
@@ -252,10 +301,15 @@ startos_managed_env_vars:
   - MIRALL_RELAY_ALLOWLIST
   - MIRALL_RELAY_BANLIST
   - MIRALL_RELAY_LOG_LEVEL
+dependencies: none
+interfaces:
+  relay: { type: api, port: 49737 }
 actions:
   - show-relay-key
   - test-reachability
   - configure
+tasks:
+  - { action: show-relay-key, severity: critical }
 health_checks:
   - relay
   - reachability
