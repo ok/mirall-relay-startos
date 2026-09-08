@@ -1,7 +1,5 @@
 import { storeJson } from '../fileModels/store.json'
-import { i18n } from '../i18n'
 import { sdk } from '../sdk'
-import { showRelayKey } from '../actions/showRelayKey'
 import { nodeBin, prepareIdentityScript, relayMounts } from '../utils'
 
 export const initializeService = sdk.setupOnInit(async (effects, kind) => {
@@ -26,9 +24,9 @@ export const initializeService = sdk.setupOnInit(async (effects, kind) => {
 
   await storeJson.merge(effects, { publicKey })
 
-  await sdk.action.createOwnTask(effects, showRelayKey, 'critical', {
-    reason: i18n(
-      'Copy the relay’s public key — it is how anyone tells Mirall to use this relay',
-    ),
-  })
+  // NO first-run task here. A 'critical' task blocks the service from starting
+  // until it is cleared, and this one only asked the operator to look at a key
+  // that Actions > Show Relay Public Key displays at any time. It also re-raised
+  // on every reinstall, so a routine package update refused to start until
+  // somebody acknowledged a prompt that told them nothing new.
 })
