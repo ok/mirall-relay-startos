@@ -60,6 +60,8 @@ const dict = {
   'The relay is listening': 45,
   'The relay is not listening': 46,
   'Internet Reachability': 47,
+  'Status Page': 48,
+  'The relay’s public key with a QR code, whether peers can reach it, and the traffic it has carried': 49,
 } as const
 
 /**

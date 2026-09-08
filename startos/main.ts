@@ -20,9 +20,13 @@ function relayEnv(store: StoreShape | null): Record<string, string> {
   const env: Record<string, string> = {
     MIRALL_RELAY_SEED_FILE: seedFile,
     MIRALL_RELAY_PORT: `${relayPort}`,
-    // The admin surface exposes internals and has no auth. Loopback only; the
-    // health checks and actions reach it from inside the container.
-    MIRALL_RELAY_ADMIN_HOST: '127.0.0.1',
+    // Bound to all interfaces so the StartOS proxy can serve the status page;
+    // health checks and actions still reach it on 127.0.0.1 from inside the
+    // container. The surface has no auth of its own — StartOS supplies it, and
+    // interfaces.ts keeps the binding off any public gateway. Upstream's
+    // DNS-rebinding check stays off on a non-loopback bind by design, because a
+    // proxy legitimately sets its own Host.
+    MIRALL_RELAY_ADMIN_HOST: '0.0.0.0',
     MIRALL_RELAY_ADMIN_PORT: `${adminPort}`,
     MIRALL_RELAY_REGION: store?.region || 'unknown',
     MIRALL_RELAY_OPERATOR: store?.operator || 'unknown',

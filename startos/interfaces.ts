@@ -1,6 +1,6 @@
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { relayPort } from './utils'
+import { adminPort, relayPort } from './utils'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
   const relayHost = sdk.MultiHost.of(effects, 'relay')
@@ -31,5 +31,26 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     query: {},
   })
 
-  return [await relayOrigin.export([relay])]
+  // The status page: the public key with a QR, whether peers can actually reach
+  // this relay, and the traffic it has carried. LAN and Tor only — StartOS
+  // provides the authentication, which is what makes it safe to export a surface
+  // that has none of its own. It is never bound to a public gateway.
+  const adminHost = sdk.MultiHost.of(effects, 'admin')
+  const adminOrigin = await adminHost.bindPort(adminPort, { protocol: 'http' })
+
+  const admin = sdk.createInterface(effects, {
+    name: i18n('Status Page'),
+    id: 'admin',
+    description: i18n(
+      'The relay’s public key with a QR code, whether peers can reach it, and the traffic it has carried',
+    ),
+    type: 'ui',
+    masked: false,
+    schemeOverride: null,
+    username: null,
+    path: '',
+    query: {},
+  })
+
+  return [await relayOrigin.export([relay]), await adminOrigin.export([admin])]
 })

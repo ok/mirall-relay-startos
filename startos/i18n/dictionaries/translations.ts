@@ -50,6 +50,8 @@ export default {
     45: 'El relé está escuchando',
     46: 'El relé no está escuchando',
     47: 'Accesibilidad desde internet',
+    48: 'Página de estado',
+    49: 'La clave pública del relé con un código QR, si los pares pueden alcanzarlo y el tráfico que ha transportado',
   },
   de_DE: {
     0: 'Region',
@@ -100,6 +102,8 @@ export default {
     45: 'Das Relay lauscht',
     46: 'Das Relay lauscht nicht',
     47: 'Erreichbarkeit aus dem Internet',
+    48: 'Statusseite',
+    49: 'Der öffentliche Schlüssel des Relays mit QR-Code, ob Peers es erreichen können, und der übertragene Datenverkehr',
   },
   pl_PL: {
     0: 'Region',
@@ -150,6 +154,8 @@ export default {
     45: 'Przekaźnik nasłuchuje',
     46: 'Przekaźnik nie nasłuchuje',
     47: 'Osiągalność z internetu',
+    48: 'Strona stanu',
+    49: 'Klucz publiczny przekaźnika z kodem QR, informacja czy węzły mogą go osiągnąć, oraz przeniesiony ruch',
   },
   fr_FR: {
     0: 'Région',
@@ -200,5 +206,7 @@ export default {
     45: 'Le relais écoute',
     46: 'Le relais n’écoute pas',
     47: 'Joignabilité depuis internet',
+    48: 'Page d’état',
+    49: 'La clé publique du relais avec un QR code, si les pairs peuvent l’atteindre, et le trafic acheminé',
   },
 } satisfies Record<string, LangDict>

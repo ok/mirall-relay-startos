@@ -5,8 +5,10 @@ import { sdk } from './sdk'
 // to be reachable from the public internet — see interfaces.ts.
 export const relayPort = 49737
 
-// The operator surface: /healthz, /readyz, /metrics and the capability doc. It
-// exposes relay internals, so it stays on loopback and is never exported.
+// The operator surface: the status page, /healthz, /readyz, /metrics and the
+// capability doc. Exported as a UI interface over LAN and Tor only — it has no
+// authentication of its own, so StartOS supplies it and interfaces.ts keeps the
+// binding off any public gateway.
 export const adminPort = 9200
 export const adminBaseUrl = `http://127.0.0.1:${adminPort}`
 
