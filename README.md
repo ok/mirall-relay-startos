@@ -70,20 +70,36 @@ attaching to a subcontainer gives you Node rather than a prompt.
 One volume holds everything durable: the relay's identity and the package's own
 settings.
 
-| Path               | Contents                                                   |
-| ------------------ | ---------------------------------------------------------- |
-| `/data`            | The `main` volume                                          |
-| `/data/seed`       | The relay identity. 64-hex, mode 0600, owned by uid 65532  |
-| `/data/store.json` | StartOS-side settings and a cached copy of the public key   |
+| Path                 | Contents                                                            |
+| -------------------- | ------------------------------------------------------------------- |
+| `/data`              | The `main` volume                                                   |
+| `/data/seed`         | The relay identity. 64-hex, mode 0600, owned by uid 65532           |
+| `/data/members.json` | The invite roster. Mode 0600 — holds every member's seed            |
+| `/data/admin-token`  | Bearer token for `/admin/*`. Mode 0600, minted on first start       |
+| `/data/store.json`   | StartOS-side settings and a cached copy of the public key            |
 
-`/data/seed` is the only secret and the only durable state upstream has. Its
-public key is the relay's address, so losing the seed strands every client
-configured with it — see [Backups and Restore](#backups-and-restore).
+`/data/seed` and `/data/members.json` are the secrets. The seed's public key is
+the relay's address, so losing it strands every client configured with it; the
+roster holds one seed per member, so losing it revokes everyone and leaking it
+hands over every membership. Both are covered by
+[Backups and Restore](#backups-and-restore).
+
+Upstream defaults the roster and the token to `./.keys/` under the working
+directory. The image's own `ENV` already redirects all three files to `/data`,
+and StartOS layers the daemon's environment *over* the image's rather than
+replacing it, so those defaults would survive — but `relayEnv` sets
+`MIRALL_RELAY_SEED_FILE`, `MIRALL_RELAY_ROSTER_FILE` and
+`MIRALL_RELAY_ADMIN_TOKEN_FILE` explicitly anyway. Off the volume these files
+would be recreated on every container replacement, losing the relay's address
+and every membership with it, and nothing in the build would catch it.
 
 A StartOS volume is mounted owned by root, but the image runs as uid 65532. A
-`prepare-identity` oneshot runs as root before the relay starts and hands `/data`
-and the seed to the runtime user; it is idempotent and also repairs ownership
-after a restore.
+`prepare-identity` oneshot runs as root before the relay starts and chowns
+`/data` **recursively** to the runtime user. It runs on every start, is
+idempotent, and the recursion is what makes a restore work: a backup returns the
+whole volume owned by root, and upstream throws on an `admin-token` it cannot
+read rather than minting a replacement, so a single root-owned file stops the
+relay from starting.
 
 `MIRALL_RELAY_SEED_SECRET_FILE` is left at its upstream default. Nothing is
 mounted at `/run/secrets/relay_seed`, so the seed file is authoritative.
@@ -118,13 +134,18 @@ service on the server.
 
 ## Network Access and Interfaces
 
-One interface is exported — the UDP port peers dial. The operator surface is
-deliberately not exported.
+Two interfaces are exported: the UDP port peers dial, and the operator status
+page.
 
-| Interface       | Id      | Type | Port      | Protocol    | Exported |
-| --------------- | ------- | ---- | --------- | ----------- | -------- |
-| Relay Endpoint  | `relay` | api  | 49737/udp | Noise (raw) | Yes      |
-| admin / metrics | —       | —    | 9200/tcp  | HTTP        | No       |
+| Interface      | Id      | Type | Port      | Protocol    | Exported |
+| -------------- | ------- | ---- | --------- | ----------- | -------- |
+| Relay Endpoint | `relay` | api  | 49737/udp | Noise (raw) | Yes      |
+| Status Page    | `admin` | ui   | 9200/tcp  | HTTP        | Yes      |
+
+The `admin` interface carries two pages: the anonymous status page at `/`, and
+upstream's token-gated members page at `/admin/` where invites are created and
+revoked. Both are on the same port and therefore the same interface — exposing
+one exposes the other's login.
 
 The relay interface is bound with no protocol and `secure: { ssl: false }` — the
 same shape StartOS uses for ssh: encrypted by the protocol itself, not by TLS, so
@@ -137,11 +158,51 @@ its public IP, not by hostname. What matters is that **UDP 49737 arrives at this
 server** — forward it on your router, or run the service on a host with a public
 IP.
 
-The admin surface (`/healthz`, `/readyz`, `/metrics`,
-`/.well-known/mirall-relay.json`) has no authentication and exposes internals, so
-this package keeps it on container loopback, where only the health checks and
-actions can reach it. It is deliberately not available for Prometheus scraping
-from another host.
+The relay binds its admin server to `0.0.0.0` inside the container
+(`MIRALL_RELAY_ADMIN_HOST`) so the StartOS proxy can serve the status page; the
+health checks and actions still reach it on `127.0.0.1`. That surface splits in
+two:
+
+- **Anonymous reads** — the status page at `/`, plus `/healthz`, `/readyz`,
+  `/metrics` and `/.well-known/mirall-relay.json`. Upstream's rule is that these
+  show numbers, never names or secrets: no member labels, no tickets, no seed.
+- **`/admin/`** — the members page: a browser UI to create, re-show and revoke
+  invites. The **shell and its static assets are served without the token**
+  (`/admin/`, `/admin/style.css`, `/admin/app.js`, `/admin/copy-button.js`), and
+  deliberately so — a `<link>` cannot send an `Authorization` header, so
+  requiring one there would mean no page could ever load to collect the token.
+  The shell is static markup with empty slots; it carries no member data.
+- **Everything else under `/admin/`** — the membership write surface, gated by
+  upstream on a bearer token read from `/data/admin-token`. Without the token it
+  answers 401. Every label, key and ticket the page shows arrives over one of
+  these authenticated fetches. The token lives in the tab's `sessionStorage`
+  rather than a cookie, so it is not carried on requests the page did not make.
+
+The anonymous half has no authentication of its own, which is what makes *where
+you expose it* an operator decision rather than a package one. StartOS controls
+that: add the LAN or Tor addresses you want on the **Status Page** interface and
+it is reachable there. **Do not bind it to a public gateway** — nothing in this
+package prevents it, and doing so publishes your traffic counters and DHT state
+to anyone who finds the address.
+
+Because the interface is exported, `/metrics` *is* scrapable from wherever you
+have made the interface reachable — a change from earlier revisions of this
+package, which kept the surface on container loopback.
+
+Upstream's DNS-rebinding Host guard is inert here by design: it engages only on
+a loopback bind or when `MIRALL_RELAY_ADMIN_ALLOWED_HOSTS` is set, and a proxy
+legitimately sets its own Host.
+
+**Expect a warning in the logs on every start**, beginning *"the /admin/\* write
+surface is bound off loopback…"*. It is upstream telling you that the bearer
+token is the only thing in front of `/admin/*`, which is true and is the design
+here — StartOS decides who reaches the port, and the token decides who may write.
+It is not a fault and needs no action. This package leaves
+`MIRALL_RELAY_ADMIN_WRITE` at upstream's default of `true` rather than disabling
+the surface, because it is the only way to manage invites on StartOS short of
+`start-cli package attach`. Set `MIRALL_RELAY_ADMIN_WRITE=false` in `relayEnv` if
+you would rather the write surface did not exist; nothing in this package uses
+it.
 
 ## Installation and First-Run Flow
 
@@ -153,8 +214,8 @@ exists before the relay has ever started.
    temporary container, creating the seed if there is none, and caches the public
    key in `store.json`. The key is therefore available while the service is still
    stopped, so you can hand it out while the port forward is still being sorted.
-2. A critical task prompts you to run *Show Relay Public Key*. See
-   [Tasks](#tasks) — it holds the service until you clear it.
+2. Nothing blocks the first start. An earlier revision raised a `critical` task
+   asking the operator to look at the public key; it is gone. See [Tasks](#tasks).
 3. `instructions.md` — the **Instructions** tab in StartOS — states the
    port-forwarding requirement and the consequence of losing the seed. StartOS
    has no per-package lifecycle alerts, so that is where those warnings live.
@@ -179,7 +240,10 @@ code.
 red and you want the underlying detail, or after changing a port forward. It
 queries the relay's own admin endpoint and reports whether HyperDHT considers the
 node firewalled, along with the version and caps the relay advertises to clients.
-Read-only, instant, safe to repeat, and requires the service to be running.
+It distinguishes *measured* from *asserted*: with **Assume Reachable** on,
+`firewalled: false` is something the relay was told rather than something it
+found out, and the action says so instead of reporting success. Read-only,
+instant, safe to repeat, and requires the service to be running.
 
 **Configure Relay** — run it to set the operator labels, the traffic caps, the
 allow/ban lists, the log level, or *Assume Reachable*. Saving writes the form to
@@ -190,20 +254,17 @@ not change. Safe to repeat.
 
 ## Tasks
 
-The package creates one task, and it is `critical` — which means it blocks the
-service from starting and suspends the ordinary controls until it is cleared. A
-user reporting "I can't start the relay and there are no buttons" is almost
-certainly looking at it.
+**None.** The package raises no tasks.
 
-| Task                        | Severity | Raised by                  | Cleared by         |
-| --------------------------- | -------- | -------------------------- | ------------------ |
-| Run *Show Relay Public Key* | critical | Install, and every restore | Running the action |
+It used to raise one `critical` task on install and on every restore, asking the
+operator to run *Show Relay Public Key*. It was removed: a `critical` task blocks
+the service from starting, and this one only asked someone to look at a key that
+*Show Relay Public Key* displays at any time, including while the service is
+stopped. Worse, it re-raised on every reinstall, so a routine package update
+refused to start until somebody acknowledged a prompt that told them nothing new.
 
-It exists because a relay nobody has the key for is inert: the key is the only
-address the relay has, and handing it out is the one setup step that cannot be
-automated. It is raised on this service's own page, not on another package's. It
-returns after a restore, because a restored instance runs init again — the key is
-the same one as before, so clearing it a second time is a formality.
+If a support conversation mentions a task blocking startup, the install predates
+`0.1.0:2` and the fix is to update.
 
 ## Health Checks
 
@@ -230,8 +291,10 @@ nodes before it can know, so red for the first minute or two means nothing.
 ## Backups and Restore
 
 The strategy is `sdk.Backups.ofVolumes('main')` — the whole volume copied
-wholesale, nothing dumped and replayed. That captures both `/data/seed` and
-`/data/store.json`.
+wholesale, nothing dumped and replayed. That captures `/data/seed`,
+`/data/members.json`, `/data/admin-token` and `/data/store.json`. A backup of
+this service therefore contains the relay's identity *and* every member's seed;
+treat the backup with the care those two secrets deserve.
 
 Nothing is deliberately excluded, because nothing on the volume is a cache: the
 relay's sessions, links and meter samples are all in memory and disposable by
@@ -239,9 +302,13 @@ design.
 
 **Back this service up.** The seed is not recoverable by any other means, and
 without it the relay comes back with a different public key that no existing
-client is configured for. A restored instance re-derives the same key, repairs
-file ownership automatically, and needs nothing re-entered — but it does raise the
-setup task again, and the port forward has to exist wherever it now runs.
+client is configured for. Losing `members.json` separately revokes every member,
+since each membership *is* its seed.
+
+A restored instance re-derives the same key, repairs file ownership
+automatically — see the recursive chown under
+[Volume and Data Layout](#volume-and-data-layout) — and needs nothing re-entered.
+It raises no task. The port forward has to exist wherever it now runs.
 
 ## Limitations and Differences
 
@@ -257,21 +324,67 @@ setup task again, and the port forward has to exist wherever it now runs.
    port that differs can never pass. Check the Relay Endpoint interface after
    install, and if it did not get 49737, free that port rather than forwarding
    the one it shows.
-4. **`/metrics` is not scrapable from outside the container.** The admin surface
-   is loopback-only; upstream's `deploy/prometheus-scrape.example.yml` assumes a
-   sidecar this package does not run.
+4. **Invites are managed on upstream's members page, not by a StartOS action.**
+   Members are created, re-shown and revoked at `/admin/` on the **Status Page**
+   interface — reached by appending `admin/` to that interface's address, because
+   upstream only renders an on-page link to it once `access.mode` is already
+   `invite` (`manageSentence` is gated on the mode in `src/admin-ui.js`). In this
+   package's default `open` mode there is no link, which is worth knowing since
+   minting members is the thing you must do *before* switching the mode. Auth is
+   the admin token from `/data/admin-token`, logged exactly once on the boot that
+   mints it, so recover it from that boot's service logs or read the file:
+
+   ```
+   start-cli package attach mirall-relay -n mirall-relay-sub -- \
+     /nodejs/bin/node -e "console.log(require('fs').readFileSync('/data/admin-token','utf8'))"
+   ```
+
+   No *Create Invite* action is wrapped around this on purpose: upstream's page
+   already does the job the actions would, and duplicating it would put two
+   writers on the roster with no gain. `mirall-relay invite …` also still works
+   through `start-cli package attach`.
+
+   What is genuinely absent is an **access-mode field** — there is no toggle in
+   *Configure Relay* for `MIRALL_RELAY_ACCESS`, so the relay stays in upstream's
+   default `open` mode. It is left out because switching to `invite` with an
+   empty roster refuses every connection, and a field that can do that without
+   the operator having minted an invite first is a trap. Mint members on the
+   page, then set the mode.
+
+   The `mirall://relay/…` ticket a member receives is a **bearer credential** —
+   whoever holds it is that member — and needs a Mirall client that understands
+   tickets.
 5. **`scripts/probe.js` is not exposed as an action.** It needs outbound DHT
    access and two throwaway nodes; use *Test Reachability*, or run the probe from
    another machine against the public key.
-6. **Allowlisting end users does not work**, exactly as upstream documents: a
-   Mirall client's DHT node key is regenerated on every app start. The allowlist
-   only pins infrastructure whose DHT identity you control.
+6. **The allowlist cannot pin end users**, exactly as upstream documents: a
+   Mirall client's DHT node key is regenerated on every app start, so the
+   *Allowlist* field in *Configure Relay* only pins infrastructure whose DHT
+   identity you control. Upstream's answer to a private relay for people is
+   invite membership, where the member's identity derives from the seed in their
+   ticket and is therefore stable — see limitation 4 for its status here.
 7. **No seed rotation action.** Rotating the seed changes the relay's address and
    strands every configured client, so it is deliberately not a button. To do it
    anyway, uninstall and reinstall.
 8. **Upstream's remaining knobs are not exposed.** `--bootstrap`, `--ephemeral`,
-   `--max-link-ms`, `--max-pending`, `--session-rate`, `--over-rate-grace-ms` and
-   `--meter-ms` are left at their upstream defaults and have no form field.
+   `--max-link-ms`, `--max-pending`, `--session-rate`, `--over-rate-grace-ms`,
+   `--meter-ms`, `--access`, `--admin-write` and `--admin-ui` are left at their
+   upstream defaults and have no form field.
+9. **A changed WAN address makes reachability red for a while.** HyperDHT
+   decides `firewalled` by probing the public address it has observed, so when
+   the line reconnects on a new IP the verdict is stale until the node
+   re-establishes what its address is. It *does* recover unattended — one
+   instance was observed going from `firewalled: true` to `false` across roughly
+   an hour and a half with no restart, tracking the address change — but not
+   quickly. Restarting the service forces an immediate re-measure and is the
+   faster fix. Suspect this whenever reachability goes red with no configuration
+   change, on a connection whose ISP forces periodic reconnects; check the
+   *Status Page* for the public address the relay currently believes it has, and
+   whether your port forward matches it.
+10. **The status page has no authentication of its own.** StartOS is what stands
+   in front of it. Exposing the *Status Page* interface on a public gateway
+   publishes the relay's traffic counters and DHT state — see
+   [Network Access and Interfaces](#network-access-and-interfaces).
 
 ---
 
@@ -288,6 +401,8 @@ file_models:
   - store.json
 startos_managed_env_vars:
   - MIRALL_RELAY_SEED_FILE
+  - MIRALL_RELAY_ROSTER_FILE
+  - MIRALL_RELAY_ADMIN_TOKEN_FILE
   - MIRALL_RELAY_PORT
   - MIRALL_RELAY_ADMIN_HOST
   - MIRALL_RELAY_ADMIN_PORT
@@ -303,14 +418,22 @@ startos_managed_env_vars:
   - MIRALL_RELAY_LOG_LEVEL
 dependencies: none
 interfaces:
-  relay: { type: api, port: 49737 }
+  relay: { type: api, port: 49737, protocol: udp }
+  admin: { type: ui, port: 9200, protocol: http, name: Status Page }
 actions:
   - show-relay-key
   - test-reachability
   - configure
-tasks:
-  - { action: show-relay-key, severity: critical }
+admin_pages:
+  "/": anonymous status page
+  "/admin/": members page, bearer token from /data/admin-token (shell + assets anonymous)
+tasks: none
 health_checks:
   - relay
   - reachability
+access_mode: open   # upstream default; invite membership is not exposed as an action
+secrets_on_volume:
+  - /data/seed
+  - /data/members.json
+  - /data/admin-token
 ```

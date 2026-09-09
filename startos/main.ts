@@ -4,11 +4,13 @@ import { i18n } from './i18n'
 import { sdk } from './sdk'
 import {
   adminPort,
+  adminTokenFile,
   fetchReadyz,
   nodeBin,
   prepareIdentityScript,
   relayMounts,
   relayPort,
+  rosterFile,
   seedFile,
 } from './utils'
 
@@ -19,6 +21,12 @@ type HealthResult = Omit<T.NamedHealthCheckResult, 'name'>
 function relayEnv(store: StoreShape | null): Record<string, string> {
   const env: Record<string, string> = {
     MIRALL_RELAY_SEED_FILE: seedFile,
+    // Both belong on the volume with the seed: members.json holds every
+    // member's seed and is the same class of secret, and a regenerated admin
+    // token would silently invalidate the operator's copy. Access mode is left
+    // at upstream's default of 'open' — see README, Limitations.
+    MIRALL_RELAY_ROSTER_FILE: rosterFile,
+    MIRALL_RELAY_ADMIN_TOKEN_FILE: adminTokenFile,
     MIRALL_RELAY_PORT: `${relayPort}`,
     // Bound to all interfaces so the StartOS proxy can serve the status page;
     // health checks and actions still reach it on 127.0.0.1 from inside the
