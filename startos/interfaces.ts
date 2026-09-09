@@ -32,9 +32,14 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
   })
 
   // The status page: the public key with a QR, whether peers can actually reach
-  // this relay, and the traffic it has carried. LAN and Tor only — StartOS
-  // provides the authentication, which is what makes it safe to export a surface
-  // that has none of its own. It is never bound to a public gateway.
+  // this relay, and the traffic it has carried. The surface has no auth of its
+  // own, so StartOS is what stands in front of it — the operator picks the
+  // addresses on this interface, and a LAN or Tor address is the safe answer.
+  // Nothing here can stop them choosing a public gateway; README says so under
+  // Limitations rather than this comment pretending it is enforced.
+  //
+  // Upstream gates /admin/* separately on a bearer token from /data/admin-token,
+  // so the membership write surface is not exposed by exporting this.
   const adminHost = sdk.MultiHost.of(effects, 'admin')
   const adminOrigin = await adminHost.bindPort(adminPort, { protocol: 'http' })
 

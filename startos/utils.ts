@@ -15,6 +15,15 @@ export const adminBaseUrl = `http://127.0.0.1:${adminPort}`
 export const dataMountpoint = '/data'
 export const seedFile = `${dataMountpoint}/seed`
 
+// Upstream's Dockerfile defaults both of these to /data, and StartOS layers the
+// daemon's env on top of the image's rather than replacing it, so the defaults
+// would in fact survive. They are set explicitly anyway, exactly as seedFile is:
+// an upstream Dockerfile that dropped them would silently relocate the roster
+// and the token to /app — off the volume, lost on every container replacement,
+// and taking every membership with them.
+export const rosterFile = `${dataMountpoint}/members.json`
+export const adminTokenFile = `${dataMountpoint}/admin-token`
+
 // The seed and store.json are the only durable state; both live here.
 export const relayMounts = sdk.Mounts.of().mountVolume({
   volumeId: 'main',
@@ -43,12 +52,31 @@ export const nodeBin = '/nodejs/bin/node'
  */
 export const prepareIdentityScript = `
 const fs = require('fs')
+const path = require('path')
+
+// Recursive, and deliberately not a list of known filenames. A restore brings
+// the whole volume back owned by root, and upstream keeps adding files to it:
+// members.json and admin-token arrived with invite membership. A root-owned
+// 0600 admin-token is unreadable to uid ${runtimeUid}, and upstream throws on it
+// rather than minting a second token, so the relay does not start at all.
+const chownAll = (p) => {
+  fs.chownSync(p, ${runtimeUid}, ${runtimeUid})
+  let entries = []
+  try {
+    entries = fs.readdirSync(p, { withFileTypes: true })
+  } catch {
+    return // not a directory
+  }
+  for (const e of entries) chownAll(path.join(p, e.name))
+}
+
 fs.mkdirSync('${dataMountpoint}', { recursive: true })
-fs.chownSync('${dataMountpoint}', ${runtimeUid}, ${runtimeUid})
+chownAll('${dataMountpoint}')
 import('/app/src/keys.js')
   .then((keys) => {
     const seed = keys.loadOrCreateSeed({ seedFile: '${seedFile}' })
-    fs.chownSync('${seedFile}', ${runtimeUid}, ${runtimeUid})
+    // Again, because loadOrCreateSeed may have just created the seed as root.
+    chownAll('${dataMountpoint}')
     process.stdout.write(keys.publicKeyZ32(keys.keyPairFromSeed(seed)))
   })
   .catch((err) => {

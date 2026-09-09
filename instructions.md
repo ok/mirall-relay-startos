@@ -34,13 +34,25 @@ Give it a couple of minutes after starting: the relay has to join the DHT and ha
 
 For more detail, run **Test Reachability**: it reports whether the relay is firewalled, along with the version and limits it advertises to clients.
 
-If your server truly has a public IP with unfiltered UDP but the check still fails, turn on **Assume Reachable** in **Configure Relay**. Only do this when you're certain — a relay that assumes wrongly advertises itself and then fails every connection it's offered.
+**If reachability goes red on its own, restart the service first.** Many home connections are given a new public IP by the ISP every so often, and when that happens the relay keeps reporting *firewalled* for a while even though your port forward is fine — it's still probing the address it used to have. It does sort itself out eventually, but that can take an hour or more; restarting re-checks straight away.
+
+If it stays red after a restart, look at the public address on the **Status Page** and make sure your router forwards UDP 49737 to this server for *that* address. On some connections the address you get isn't the one your forward was set up for.
+
+If your server truly has a public IP with unfiltered UDP but the check still fails, turn on **Assume Reachable** in **Configure Relay**. Only do this when you're certain — a relay that assumes wrongly advertises itself and then fails every connection it's offered. With it on, the health check and **Test Reachability** both say the reachability was *asserted rather than measured*, because at that point nothing has actually tested it.
+
+## The status page
+
+The **Status Page** interface, on the service's Dashboard, shows the same things in a browser: the public key with a QR code to scan from a phone, whether peers can reach the relay in plain language, and the traffic it has carried.
+
+It has no password of its own — StartOS is what keeps it private, so reach it over your LAN or a Tor address and **don't put it on a public gateway**. Anyone who can open it can read your relay's traffic counters.
 
 ## Back it up
 
 The relay's identity is a seed file on this server, and its public key — the one you handed out — is derived from it. There is no way to recover it and no way to re-issue the same key.
 
-Back this service up. If you lose the seed, everyone who added this relay has to be given a new key.
+Back this service up. If you lose the seed, everyone who added this relay has to be given a new key. If you have invited members (below), their memberships live on the same volume and go the same way.
+
+A backup of this service therefore contains your relay's identity and every member's credential. Keep it somewhere you'd keep a password file.
 
 The same applies to uninstalling: it deletes the seed, and with it the public key. Anyone who added this relay in Mirall is left holding a key that no longer resolves to anything.
 
@@ -49,3 +61,26 @@ The same applies to uninstalling: it deletes the seed, and with it the public ke
 The relay is open to anyone by default, which is the normal way to run one. Bandwidth is the cost: every relayed byte comes in and goes out again.
 
 **Configure Relay** covers the rest — capacity limits, per-connection rate and byte caps, a banlist for handling abuse, and the region/operator labels the relay publishes about itself.
+
+### Running a private relay
+
+The relay can also run closed, admitting only people you've invited. You manage that from the **members page** in your browser.
+
+**1. Get the admin token.** It's generated the first time the relay starts and written to the service's data. Read it with:
+
+```
+start-cli package attach mirall-relay -n mirall-relay-sub -- \
+  /nodejs/bin/node -e "console.log(require('fs').readFileSync('/data/admin-token','utf8'))"
+```
+
+**2. Open the members page.** Take the **Status Page** address from your Dashboard and add `admin/` to the end of it. Paste the token once — the page keeps it for that browser tab only, and asks again in a new one.
+
+(The status page only links to the members page once the relay is already in invite mode, so while it's still open you have to type the address yourself.)
+
+**3. Add a member.** Give them a short label. You get back a `mirall://relay/…` invite line; send it to that person and they paste it into Mirall in place of a relay key. You can re-show an invite later if they lose it, and revoke one at any time — revoking cuts their live connections, not just future ones.
+
+Two things to know. An invite is a **bearer credential** — whoever holds the string is that member, so send it like a password and issue one per person, not one per device. And the relay is still **open** until you switch it: this package doesn't expose that switch, deliberately, because turning on invite mode before you've added anyone refuses *every* connection. Add your members first, then set `MIRALL_RELAY_ACCESS=invite` as described in [OPERATIONS.md](https://github.com/ok/mirall-relay/blob/main/OPERATIONS.md).
+
+Keep the members list in your backups — it holds every member's credential, and losing it means re-inviting everyone.
+
+The **Allowlist** field in **Configure Relay** is not a substitute: Mirall picks a new network identity every time the app starts, so an allowlist can only pin servers you run, never people.
