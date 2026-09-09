@@ -36,7 +36,7 @@ For more detail, run **Test Reachability**: it reports whether the relay is fire
 
 **If reachability goes red on its own, restart the service first.** Many home connections are given a new public IP by the ISP every so often, and when that happens the relay keeps reporting *firewalled* for a while even though your port forward is fine — it's still probing the address it used to have. It does sort itself out eventually, but that can take an hour or more; restarting re-checks straight away.
 
-If it stays red after a restart, look at the public address on the **Status Page** and make sure your router forwards UDP 49737 to this server for *that* address. On some connections the address you get isn't the one your forward was set up for.
+If it stays red after a restart, check the public address shown on the **Status Page** and make sure your router still forwards UDP 49737 to this server — a forward set up against an older address, or pointed at a LAN address the server no longer has, is the usual culprit.
 
 If your server truly has a public IP with unfiltered UDP but the check still fails, turn on **Assume Reachable** in **Configure Relay**. Only do this when you're certain — a relay that assumes wrongly advertises itself and then fails every connection it's offered. With it on, the health check and **Test Reachability** both say the reachability was *asserted rather than measured*, because at that point nothing has actually tested it.
 
