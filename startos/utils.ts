@@ -32,6 +32,16 @@ export const relayMounts = sdk.Mounts.of().mountVolume({
   readonly: false,
 })
 
+// Same volume, mounted read-only. Actions that only need to look at the data
+// directory take this rather than relayMounts: they run while the daemon holds
+// the volume read-write, and nothing in a read path should be able to write.
+export const relayMountsReadonly = sdk.Mounts.of().mountVolume({
+  volumeId: 'main',
+  subpath: null,
+  mountpoint: dataMountpoint,
+  readonly: true,
+})
+
 // The image's runtime user (distroless 'nonroot'). A freshly mounted StartOS
 // volume belongs to root, so without prepareIdentityScript the relay can
 // neither create its seed nor read one restored from a backup.
@@ -83,6 +93,28 @@ import('/app/src/keys.js')
     console.error(err)
     process.exit(1)
   })
+`
+
+/**
+ * Read the admin token off the volume. Exit 3 means the file is not there yet:
+ * upstream mints it on the first boot of the relay itself, not in
+ * prepare-identity, so between install and first successful start there is
+ * nothing to show. Distinguishing that from a real failure is the whole reason
+ * this runs through `exec` rather than `execFail`.
+ *
+ * Runs as root because the file is mode 0600 owned by the runtime uid.
+ */
+export const readAdminTokenScript = `
+const fs = require('fs')
+try {
+  const token = fs.readFileSync('${adminTokenFile}', 'utf8').trim()
+  if (!token) process.exit(3)
+  process.stdout.write(token)
+} catch (err) {
+  if (err.code === 'ENOENT') process.exit(3)
+  console.error(err)
+  process.exit(1)
+}
 `
 
 /** The relay's /readyz response. */

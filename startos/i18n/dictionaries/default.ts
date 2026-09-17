@@ -30,6 +30,14 @@ const dict = {
   'Paste this into Mirall under Settings → Network → Add a relay, on both peers where you can. There is no host, port or token — the key is the whole address.': 23,
   'Public Key': 24,
 
+  // actions/showAdminToken.ts
+  'Show Admin Token': 53,
+  'Reveal the token that unlocks the Members Page, where invites are created and revoked.': 54,
+  'Anyone holding this token can add and remove members. Treat it like a password.': 55,
+  'Admin Token': 56,
+  'No token exists yet. The relay mints it on its first successful start — start the service, then run this action again.': 57,
+  'Open the Members Page from the Interfaces tab and paste this when it asks. The page keeps it for that browser tab only, so a new tab asks again.': 58,
+
   // actions/testReachability.ts
   'Test Reachability': 25,
   'Ask the relay whether the internet can reach it, and show the limits it advertises.': 26,
@@ -49,6 +57,8 @@ const dict = {
   // interfaces.ts
   'Relay Endpoint': 38,
   'The UDP endpoint peers dial. Reachable from the public internet, or the relay is of no use.': 39,
+  'Members Page': 59,
+  'Create, re-show and revoke member invites. Unlocked with the admin token — run the Show Admin Token action to get it.': 60,
 
   // main.ts
   'Peers on the internet can reach this relay': 40,

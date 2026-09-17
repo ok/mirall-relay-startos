@@ -57,5 +57,42 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     query: {},
   })
 
-  return [await relayOrigin.export([relay]), await adminOrigin.export([admin])]
+  // Same origin, same binding — only the path differs, so this adds no new
+  // exposure: /admin/ has always been served on the port the Status Page is on.
+  // What it adds is a StartOS-level entry point. Upstream 0.3.0 does now link the
+  // page from the status page's nav in every access mode (pageNav in
+  // src/operator/status/page.js), which it did not before, so this is no longer
+  // the only way in — it is the direct one: the page is listed and clickable
+  // beside every other interface, without a detour through the status page.
+  //
+  // The write surface stays gated on the bearer token from /data/admin-token;
+  // the Show Admin Token action is how the operator gets it. Only the page shell
+  // and its assets are anonymous.
+  //
+  // Reusing adminOrigin rather than binding a second port matters: addresses are
+  // enabled per binding, so this inherits whatever the user already enabled for
+  // the Status Page instead of arriving with everything switched off.
+  const members = sdk.createInterface(effects, {
+    name: i18n('Members Page'),
+    id: 'members',
+    description: i18n(
+      'Create, re-show and revoke member invites. Unlocked with the admin token — run the Show Admin Token action to get it.',
+    ),
+    type: 'ui',
+    // The URL carries no credential: the token is typed into the page, never
+    // put in the address.
+    masked: false,
+    schemeOverride: null,
+    username: null,
+    // Trailing slash required. Upstream 308s /admin to admin/ because the page's
+    // asset URLs are document-relative, and a bare /admin would resolve
+    // style.css against the root.
+    path: '/admin/',
+    query: {},
+  })
+
+  return [
+    await relayOrigin.export([relay]),
+    await adminOrigin.export([admin, members]),
+  ]
 })
