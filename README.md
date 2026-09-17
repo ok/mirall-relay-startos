@@ -7,6 +7,8 @@
   </a>
 </p>
 
+---
+
 # Mirall Relay on StartOS
 
 > Everything not listed in this document should behave the same as upstream
@@ -25,8 +27,36 @@ Reachability* health check fails and nothing is relayed.
 
 ---
 
+## Where to Get It
+
+This package is published to a community-run registry at
+**`registry.zsapping.net`**, built for `x86_64` and `aarch64`. It is not on
+Start9's own registry, so the registry is added once and then the service
+installs like any other:
+
+1. Open **Marketplace** and click the registry name at the top of the list.
+2. Under **Saved Registries** choose **Add**, enter `registry.zsapping.net`, and
+   save. StartOS warns that it cannot vouch for a custom registry — that is
+   expected of any registry outside Start9's, and a fair reminder that you are
+   trusting whoever runs this one.
+3. Select that registry, find **Mirall Relay**, and install.
+
+To sideload instead, download the `.s9pk` for the target architecture from the
+[releases](https://github.com/ok/mirall-relay-startos/releases) and use the
+**Sideload** page.
+
+The identity is derived during install, before the relay has ever started, so
+*Show Relay Public Key* returns a key immediately — see
+[Installation and First-Run Flow](#installation-and-first-run-flow). The port
+forward that makes any of it useful is
+[Limitations and Differences](#limitations-and-differences) § 1–3; note in
+particular that the external port must be **exactly 49737**.
+
+---
+
 ## Table of Contents
 
+- [Where to Get It](#where-to-get-it)
 - [Image and Container Runtime](#image-and-container-runtime)
 - [Volume and Data Layout](#volume-and-data-layout)
 - [File Models](#file-models)
