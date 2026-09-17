@@ -39,14 +39,19 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
    is what the relay reports in its capability document, and claiming a version upstream
    has not released would disagree with it.
 
-3. **Re-check the four assumptions `startos/utils.ts` makes about the image.** None of them
+3. **Re-check the six assumptions `startos/utils.ts` makes about the image.** None of them
    are enforced by the build, and each fails at runtime rather than at `tsc`:
 
    - the runtime user is still uid 65532 (`runtimeUid`),
    - `node` is still at `/nodejs/bin/node` (`nodeBin`),
    - `src/keys.js` still exports `loadOrCreateSeed`, `keyPairFromSeed` and `publicKeyZ32`
      (`prepareIdentityScript`),
-   - `/readyz` still returns `{ ready, firewalled, probed, publicKey }` (`ReadyzBody`).
+   - `/readyz` still returns `{ ready, firewalled, probed, publicKey }` (`ReadyzBody`),
+   - `/data/admin-token` is still a plain-text file holding the token and nothing else
+     (`readAdminTokenScript`) — if upstream ever wraps it in JSON, *Show Admin Token*
+     returns the wrapper and the members page rejects it,
+   - the members page still lives at `/admin/`, with `/admin` 308ing to it
+     (`interfaces.ts`, the `members` interface's `path`).
 
    Also re-check that every `MIRALL_RELAY_*` variable in `relayEnv` (`startos/main.ts`) is
    still the name upstream reads, and that the capability document consumed by

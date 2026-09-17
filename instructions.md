@@ -42,7 +42,9 @@ If your server truly has a public IP with unfiltered UDP but the check still fai
 
 ## The status page
 
-The **Status Page** interface, on the service's Dashboard, shows the same things in a browser: the public key with a QR code to scan from a phone, whether peers can reach the relay in plain language, and the traffic it has carried.
+The **Status Page** interface, on the service's Dashboard, shows the same things in a browser. It opens with whether peers can reach the relay, in plain language, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that is the public key with a QR code to scan from a phone.
+
+Traffic is counted *this run* — it resets when the service restarts, so treat it as a current-session figure rather than a lifetime total.
 
 It has no password of its own — StartOS is what keeps it private, so reach it over your LAN or a Tor address and **don't put it on a public gateway**. Anyone who can open it can read your relay's traffic counters.
 
@@ -66,18 +68,13 @@ The relay is open to anyone by default, which is the normal way to run one. Band
 
 The relay can also run closed, admitting only people you've invited. You manage that from the **members page** in your browser.
 
-**1. Get the admin token.** It's generated the first time the relay starts and written to the service's data. Read it with:
+**1. Get the admin token.** Run **Show Admin Token**. The relay generates it the first time it starts, so if you've never started the service yet the action will tell you to do that first. Tap to copy.
 
-```
-start-cli package attach mirall-relay -n mirall-relay-sub -- \
-  /nodejs/bin/node -e "console.log(require('fs').readFileSync('/data/admin-token','utf8'))"
-```
+**2. Open the members page.** It's the **Members Page** interface, next to the Status Page — open it the way you open any other interface. Paste the token once when it asks; the page keeps it for that browser tab only, and asks again in a new one.
 
-**2. Open the members page.** Take the **Status Page** address from your Dashboard and add `admin/` to the end of it. Paste the token once — the page keeps it for that browser tab only, and asks again in a new one.
+**3. Add a member.** Give them a short label. Each row then has a **Copy invite** button that puts a `mirall://relay/…` line on your clipboard; send it to that person and they paste it into Mirall in place of a relay key. You can copy an invite again later if they lose it, and revoke one at any time — revoking cuts their live connections, not just future ones. Revoked members fold away into their own section rather than cluttering the list.
 
-(The status page only links to the members page once the relay is already in invite mode, so while it's still open you have to type the address yourself.)
-
-**3. Add a member.** Give them a short label. You get back a `mirall://relay/…` invite line; send it to that person and they paste it into Mirall in place of a relay key. You can re-show an invite later if they lose it, and revoke one at any time — revoking cuts their live connections, not just future ones.
+On a LAN address your browser offers no clipboard — that's a browser rule about plain HTTP, not a fault here — so **Copy invite** shows the invite as selected text instead. Copy it with ⌘C or Ctrl-C.
 
 Two things to know. An invite is a **bearer credential** — whoever holds the string is that member, so send it like a password and issue one per person, not one per device. And the relay is still **open** until you switch it: this package doesn't expose that switch, deliberately, because turning on invite mode before you've added anyone refuses *every* connection. Add your members first, then set `MIRALL_RELAY_ACCESS=invite` as described in [OPERATIONS.md](https://github.com/ok/mirall-relay/blob/main/OPERATIONS.md).
 
