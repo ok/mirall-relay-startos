@@ -134,18 +134,31 @@ service on the server.
 
 ## Network Access and Interfaces
 
-Two interfaces are exported: the UDP port peers dial, and the operator status
-page.
+Three interfaces are exported: the UDP port peers dial, the operator status
+page, and the members page that shares its binding.
 
-| Interface      | Id      | Type | Port      | Protocol    | Exported |
-| -------------- | ------- | ---- | --------- | ----------- | -------- |
-| Relay Endpoint | `relay` | api  | 49737/udp | Noise (raw) | Yes      |
-| Status Page    | `admin` | ui   | 9200/tcp  | HTTP        | Yes      |
+| Interface      | Id        | Type | Port      | Path      | Protocol    | Exported |
+| -------------- | --------- | ---- | --------- | --------- | ----------- | -------- |
+| Relay Endpoint | `relay`   | api  | 49737/udp | —         | Noise (raw) | Yes      |
+| Status Page    | `admin`   | ui   | 9200/tcp  | `/`       | HTTP        | Yes      |
+| Members Page   | `members` | ui   | 9200/tcp  | `/admin/` | HTTP        | Yes      |
 
-The `admin` interface carries two pages: the anonymous status page at `/`, and
-upstream's token-gated members page at `/admin/` where invites are created and
-revoked. Both are on the same port and therefore the same interface — exposing
-one exposes the other's login.
+`admin` and `members` are two interfaces over **one binding**: the anonymous
+status page at `/`, and upstream's token-gated members page at `/admin/` where
+invites are created and revoked. Exporting the second adds no exposure — that
+path has always been served on this port — it adds a StartOS-level entry point,
+so the page is listed and clickable beside every other interface. Since both
+interfaces share the binding, the members page inherits whatever addresses the
+user has enabled for the Status Page rather than arriving with all of them off.
+
+Upstream 0.3.0 also links the members page from the status page's own two-item
+nav, in every access mode (`pageNav` in `src/operator/status/page.js`). Before
+0.3.0 that link appeared only once `access.mode` was already `invite`, which —
+since this package ships the default `open` mode — meant there was no way in
+except typing the path by hand.
+
+The path needs its trailing slash: upstream 308s `/admin` to `admin/` because the
+page's asset URLs are document-relative.
 
 The relay interface is bound with no protocol and `secure: { ssl: false }` — the
 same shape StartOS uses for ssh: encrypted by the protocol itself, not by TLS, so
@@ -236,6 +249,19 @@ and writes the result back. It changes nothing else, never interrupts the runnin
 relay, and is safe to repeat. Returns the z-base-32 key, copyable and as a QR
 code.
 
+**Show Admin Token** — run it to unlock the **Members Page**. Upstream mints the
+bearer token for `/admin/*` on the first boot of the relay and logs it exactly
+once, on that boot, because an operator on StartOS has no shell; after that line
+scrolls away there is no second chance. This action reads the token from
+`/data/admin-token` in a temporary container with the volume mounted
+**read-only**, and returns it masked and copyable. It mints nothing and rotates
+nothing — upstream refuses to write a second token over an existing file
+precisely so your copy cannot be silently invalidated, and the read-only mount
+keeps that guarantee here. Allowed while the service is stopped, which is when an
+operator who has lost the token is most likely to be looking. Before the relay's
+first successful start there is no token, and the action says so rather than
+returning an empty value.
+
 **Test Reachability** — run it when the *Internet Reachability* health check is
 red and you want the underlying detail, or after changing a port forward. It
 queries the relay's own admin endpoint and reports whether HyperDHT considers the
@@ -325,24 +351,23 @@ It raises no task. The port forward has to exist wherever it now runs.
    install, and if it did not get 49737, free that port rather than forwarding
    the one it shows.
 4. **Invites are managed on upstream's members page, not by a StartOS action.**
-   Members are created, re-shown and revoked at `/admin/` on the **Status Page**
-   interface — reached by appending `admin/` to that interface's address, because
-   upstream only renders an on-page link to it once `access.mode` is already
-   `invite` (`manageSentence` is gated on the mode in `src/admin-ui.js`). In this
-   package's default `open` mode there is no link, which is worth knowing since
-   minting members is the thing you must do *before* switching the mode. Auth is
-   the admin token from `/data/admin-token`, logged exactly once on the boot that
-   mints it, so recover it from that boot's service logs or read the file:
-
-   ```
-   start-cli package attach mirall-relay -n mirall-relay-sub -- \
-     /nodejs/bin/node -e "console.log(require('fs').readFileSync('/data/admin-token','utf8'))"
-   ```
+   Members are created, re-shown and revoked on the **Members Page** interface,
+   which is `/admin/` on the Status Page's binding. Auth is the admin token from
+   `/data/admin-token` — get it from the *Show Admin Token* action, which is there
+   because upstream logs the token exactly once, on the boot that mints it.
 
    No *Create Invite* action is wrapped around this on purpose: upstream's page
    already does the job the actions would, and duplicating it would put two
    writers on the roster with no gain. `mirall-relay invite …` also still works
    through `start-cli package attach`.
+
+   Finding the page used to be the hard part: before upstream 0.3.0 the only
+   on-page link appeared once `access.mode` was already `invite`, and this
+   package ships the default `open` mode — so there was nothing to click, while
+   minting members is precisely what you must do *before* switching the mode.
+   0.3.0's `pageNav` (`src/operator/status/page.js`) links it in every mode, and
+   this package exports it as its own interface on top of that, so it is reachable
+   without going through the status page at all.
 
    What is genuinely absent is an **access-mode field** — there is no toggle in
    *Configure Relay* for `MIRALL_RELAY_ACCESS`, so the relay stays in upstream's
@@ -419,9 +444,11 @@ startos_managed_env_vars:
 dependencies: none
 interfaces:
   relay: { type: api, port: 49737, protocol: udp }
-  admin: { type: ui, port: 9200, protocol: http, name: Status Page }
+  admin: { type: ui, port: 9200, protocol: http, path: "/", name: Status Page }
+  members: { type: ui, port: 9200, protocol: http, path: "/admin/", name: Members Page }
 actions:
   - show-relay-key
+  - show-admin-token
   - test-reachability
   - configure
 admin_pages:
