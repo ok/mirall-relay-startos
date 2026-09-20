@@ -447,7 +447,28 @@ It raises no task. The port forward has to exist wherever it now runs.
    change, on a connection whose ISP forces periodic reconnects; check the
    *Status Page* for the public address the relay currently believes it has, and
    whether your port forward matches it.
-10. **The status page has no authentication of its own.** StartOS is what stands
+10. **An install or update drops the Outbound Gateway, and a Restart does not bring
+   it back.** Confirmed with a routing capture on a live box (2026-09-20). A
+   package install or update gives the service a new LXC container with a new
+   IP. StartOS removes the policy-routing rule for the old IP
+   (`ip rule from <container IP> lookup <1000 + gateway ifindex>`) and does not
+   create one for the new IP, while its database still reports the gateway as
+   set. The relay's egress then leaves via the default WAN, HyperDHT observes the
+   home address, the reachability probe is aimed at it, and the relay reports
+   `firewalled: true` although the forward is intact. The tell is
+   `reachability.publicHost` in `/status.json` (the Status Page's *Seen from
+   outside as*) showing the home IP.
+
+   A **Restart** reuses the container, so it neither causes nor repairs this.
+   **Stop then Start** re-creates the rule. So does clearing and re-setting the
+   gateway (`start-cli package set-outbound-gateway mirall-relay`, then again
+   with the gateway id); setting the same value again is a no-op. Once the route
+   is right the relay recovers unattended through upstream's re-probe, but only
+   after HyperDHT's view of its own address settles — 28 minutes in the observed
+   case, because it samples its address only when it meets new nodes. A restart
+   at that point takes under a minute. This is a StartOS defect, not something
+   the package can work around from inside the container.
+11. **The status page has no authentication of its own.** StartOS is what stands
    in front of it. Exposing the *Status Page* interface on a public gateway
    publishes the relay's traffic counters and DHT state — see
    [Network Access and Interfaces](#network-access-and-interfaces).
