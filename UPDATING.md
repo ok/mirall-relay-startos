@@ -39,7 +39,7 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
    is what the relay reports in its capability document, and claiming a version upstream
    has not released would disagree with it.
 
-3. **Re-check the six assumptions `startos/utils.ts` makes about the image.** None of them
+3. **Re-check the seven assumptions `startos/utils.ts` makes about the image.** None of them
    are enforced by the build, and each fails at runtime rather than at `tsc`:
 
    - the runtime user is still uid 65532 (`runtimeUid`),
@@ -51,7 +51,11 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
      (`readAdminTokenScript`) — if upstream ever wraps it in JSON, *Show Admin Token*
      returns the wrapper and the members page rejects it,
    - the members page still lives at `/admin/`, with `/admin` 308ing to it
-     (`interfaces.ts`, the `members` interface's `path`).
+     (`interfaces.ts`, the `members` interface's `path`),
+   - `/status.json` still returns `access: { mode, members: { active, total } | null,
+     allowlisted }` with `mode` one of `open`, `allowlist`, `invite` (`StatusAccess`),
+     and `MIRALL_RELAY_ACCESS` still accepts exactly `open` and `invite` — the
+     *Access* field writes those two values straight into the environment.
 
    Also re-check that every `MIRALL_RELAY_*` variable in `relayEnv` (`startos/main.ts`) is
    still the name upstream reads, and that the capability document consumed by

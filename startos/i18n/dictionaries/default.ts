@@ -15,13 +15,18 @@ const dict = {
   'Throughput cap per link, per direction. Accepts sizes like 4MiB or 2MB.': 10,
   'Max Link Bytes': 11,
   'Total bytes a link may carry per direction before it is torn down.': 12,
-  Allowlist: 13,
-  'Private relay: only these peer keys may connect, and BOTH peers of a connection must be listed. Note that a Mirall client’s DHT key is fresh on every app start, so this can only pin infrastructure you control. Leave empty for an open relay.': 14,
+  'Static Keys (advanced)': 13,
+  'Fixed peer keys that are always admitted; BOTH peers of a connection must be listed. This cannot admit Mirall users, whose key is new on every app start — use Access → Private and the Members Page for people. On a public relay, setting this restricts the relay to exactly these keys.': 14,
   Banlist: 15,
   'Peer keys refused at connect time. The right tool for ad-hoc abuse handling on an open relay.': 16,
   'Log Level': 17,
   'Configure Relay': 18,
-  'Set the relay’s labels, capacity limits and access control': 19,
+  'Set whether the relay is public or private, its labels and its capacity limits': 19,
+  Access: 61,
+  'Public: anyone with the relay key can connect. Private: only people you have invited on the Members Page can connect.': 62,
+  'With no members yet, a private relay lets nobody in. You can add members before or after switching.': 63,
+  'Public — anyone with the relay key': 64,
+  'Private — invited members only': 65,
 
   // actions/showRelayKey.ts
   'Show Relay Public Key': 20,
@@ -74,6 +79,10 @@ const dict = {
   'Running, but reachability was asserted rather than measured — "Assume Reachable" is on. Confirm it from another machine.': 50,
   'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.': 51,
   'Assumed — not measured': 52,
+  'Private, with no members yet — nobody can connect. Add people on the Members Page.': 66,
+  'Private. Members who can connect:': 67,
+  'Restricted to the Static Keys list. Invited members are not admitted until Access is Private.': 68,
+  'Public — anyone with the relay key can connect': 69,
 } as const
 
 /**

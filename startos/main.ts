@@ -6,6 +6,7 @@ import {
   adminPort,
   adminTokenFile,
   fetchReadyz,
+  fetchStatus,
   nodeBin,
   prepareIdentityScript,
   relayMounts,
@@ -23,10 +24,10 @@ function relayEnv(store: StoreShape | null): Record<string, string> {
     MIRALL_RELAY_SEED_FILE: seedFile,
     // Both belong on the volume with the seed: members.json holds every
     // member's seed and is the same class of secret, and a regenerated admin
-    // token would silently invalidate the operator's copy. Access mode is left
-    // at upstream's default of 'open' — see README, Limitations.
+    // token would silently invalidate the operator's copy.
     MIRALL_RELAY_ROSTER_FILE: rosterFile,
     MIRALL_RELAY_ADMIN_TOKEN_FILE: adminTokenFile,
+    MIRALL_RELAY_ACCESS: store?.access ?? 'open',
     MIRALL_RELAY_PORT: `${relayPort}`,
     // Bound to all interfaces so the StartOS proxy can serve the status page;
     // health checks and actions still reach it on 127.0.0.1 from inside the
@@ -94,6 +95,45 @@ async function checkReachability(): Promise<HealthResult> {
   }
 }
 
+// An empty private relay is a state the operator chose, not a fault, so it is
+// a success with the consequence spelled out rather than a red check.
+async function checkAccess(): Promise<HealthResult> {
+  try {
+    const { access } = await fetchStatus()
+    if (access.mode === 'invite') {
+      const active = access.members?.active ?? 0
+      return active === 0
+        ? {
+            result: 'success',
+            message: i18n(
+              'Private, with no members yet — nobody can connect. Add people on the Members Page.',
+            ),
+          }
+        : {
+            result: 'success',
+            message: `${i18n('Private. Members who can connect:')} ${active}`,
+          }
+    }
+    if (access.mode === 'allowlist') {
+      return {
+        result: 'success',
+        message: i18n(
+          'Restricted to the Static Keys list. Invited members are not admitted until Access is Private.',
+        ),
+      }
+    }
+    return {
+      result: 'success',
+      message: i18n('Public — anyone with the relay key can connect'),
+    }
+  } catch {
+    return {
+      result: 'starting',
+      message: i18n('Waiting for the relay to answer'),
+    }
+  }
+}
+
 export const main = sdk.setupMain(async ({ effects }) => {
   const store = await storeJson.read((s) => s).const(effects)
 
@@ -140,6 +180,13 @@ export const main = sdk.setupMain(async ({ effects }) => {
           // HyperDHT takes a while to bootstrap and have its address confirmed
           // by other nodes; a red flash before that means nothing.
           gracePeriod: 120_000,
+        },
+        requires: ['relay'],
+      })
+      .addHealthCheck('access', {
+        ready: {
+          display: i18n('Access'),
+          fn: checkAccess,
         },
         requires: ['relay'],
       })
