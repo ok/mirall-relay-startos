@@ -42,9 +42,10 @@ verified, tried, and decided belongs in the commit message and the PR body.
   uid 65532 and a StartOS volume arrives owned by root. It chowns `/data`, materializes the
   seed, and prints the derived public key. It runs on every start and is idempotent.
 
-- **`startos/utils.ts` encodes four assumptions about the upstream image** that the build does
-  not enforce: the runtime uid, the path to `node`, the exports of `src/keys.js`, and the shape
-  of `/readyz`. Re-check all four when bumping the submodule — `UPDATING.md` lists them.
+- **`startos/utils.ts` encodes seven assumptions about the upstream image** that the build does
+  not enforce — among them the runtime uid, the path to `node`, the exports of `src/keys.js`,
+  and the shapes of `/readyz` and `/status.json`. Re-check all of them when bumping the
+  submodule — `UPDATING.md` is the list.
 
 - **The relay's port is raw UDP.** `interfaces.ts` binds it with `protocol: null` and
   `secure: { ssl: false }`, which makes it a plain port forward — StartOS forwards those for
