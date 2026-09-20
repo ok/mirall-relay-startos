@@ -145,7 +145,7 @@ during init with the derived public key, and rewritten whenever *Configure Relay
 is saved. *Show Relay Public Key* also writes back to it if it had to derive the
 key from the seed because the cache was empty.
 
-Ownership splits cleanly. The configuration keys — region, operator, caps,
+Ownership splits cleanly. The configuration keys — access, region, operator, caps,
 allowlist, banlist, log level, assume-reachable — belong to you: nothing
 re-asserts them, and they persist until you change them again. The `publicKey`
 key belongs to the package; it is derived from the seed and re-derived whenever
@@ -301,8 +301,9 @@ It distinguishes *measured* from *asserted*: with **Assume Reachable** on,
 found out, and the action says so instead of reporting success. Read-only,
 instant, safe to repeat, and requires the service to be running.
 
-**Configure Relay** — run it to set the operator labels, the traffic caps, the
-allow/ban lists, the log level, or *Assume Reachable*. Saving writes the form to
+**Configure Relay** — run it to set whether the relay is public or private
+(*Access*, which becomes `MIRALL_RELAY_ACCESS`), the operator labels, the traffic
+caps, the banlist and static keys, the log level, or *Assume Reachable*. Saving writes the form to
 `store.json` and **restarts the relay**, which drops in-flight relayed
 connections; clients re-establish, falling back to a direct path where one
 exists. The seed and the public key are untouched, so the relay's address does
@@ -324,13 +325,15 @@ If a support conversation mentions a task blocking startup, the install predates
 
 ## Health Checks
 
-Two checks, kept separate so that a relay which is running but unreachable is
-visibly distinct from one that is not running at all.
+Three checks. The first two are kept separate so that a relay which is running
+but unreachable is visibly distinct from one that is not running at all; the
+third says who the relay admits.
 
 | Check                     | Method                            | Grace | Meaning                                              |
 | ------------------------- | --------------------------------- | ----- | ---------------------------------------------------- |
 | **Relay**                 | UDP 49737 listening (`/proc/net`) | 10 s  | The process is up and bound                          |
 | **Internet Reachability** | `GET /readyz` on 127.0.0.1:9200   | 120 s | 200 means listening, bootstrapped and not firewalled |
+| **Access**                | `GET /status.json` on 127.0.0.1:9200 | —  | Public, private with its member count, or restricted |
 
 **Relay** failing means the process did not start or could not bind — check the
 logs for a configuration error, since upstream refuses to boot on a malformed cap
@@ -343,6 +346,10 @@ fix is a working UDP port forward — or *Assume Reachable*, if the host genuine
 has a public IP and it is the probe that is wrong. The long grace period is
 deliberate: the node has to join the DHT and have its address confirmed by other
 nodes before it can know, so red for the first minute or two means nothing.
+
+**Access** never fails. A private relay with no members reports success with
+"nobody can connect": that is a state the operator chose, and also what revoking
+the last member produces, so it is labelled rather than painted red.
 
 ## Backups and Restore
 
@@ -399,12 +406,12 @@ It raises no task. The port forward has to exist wherever it now runs.
    this package exports it as its own interface on top of that, so it is reachable
    without going through the status page at all.
 
-   What is genuinely absent is an **access-mode field** — there is no toggle in
-   *Configure Relay* for `MIRALL_RELAY_ACCESS`, so the relay stays in upstream's
-   default `open` mode. It is left out because switching to `invite` with an
-   empty roster refuses every connection, and a field that can do that without
-   the operator having minted an invite first is a trap. Mint members on the
-   page, then set the mode.
+   The mode itself is *Configure Relay → Access*, which sets
+   `MIRALL_RELAY_ACCESS` to `open` (Public) or `invite` (Private). There is no
+   precondition: Private with an empty roster saves, and the relay then refuses
+   every connection by design until the first member exists. The **Access**
+   health check and the status page both say so. Members can be minted before
+   or after the switch; minting first means going private disconnects nobody.
 
    The `mirall://relay/…` ticket a member receives is a **bearer credential** —
    whoever holds it is that member — and needs a Mirall client that understands
@@ -414,7 +421,7 @@ It raises no task. The port forward has to exist wherever it now runs.
    another machine against the public key.
 6. **The allowlist cannot pin end users**, exactly as upstream documents: a
    Mirall client's DHT node key is regenerated on every app start, so the
-   *Allowlist* field in *Configure Relay* only pins infrastructure whose DHT
+   *Static Keys (advanced)* field in *Configure Relay* only pins infrastructure whose DHT
    identity you control. Upstream's answer to a private relay for people is
    invite membership, where the member's identity derives from the seed in their
    ticket and is therefore stable — see limitation 4 for its status here.
@@ -423,7 +430,7 @@ It raises no task. The port forward has to exist wherever it now runs.
    anyway, uninstall and reinstall.
 8. **Upstream's remaining knobs are not exposed.** `--bootstrap`, `--ephemeral`,
    `--max-link-ms`, `--max-pending`, `--session-rate`, `--over-rate-grace-ms`,
-   `--meter-ms`, `--access`, `--admin-write` and `--admin-ui` are left at their
+   `--meter-ms`, `--admin-write` and `--admin-ui` are left at their
    upstream defaults and have no form field.
 9. **A changed WAN address makes reachability red for a while.** HyperDHT
    decides `firewalled` by probing the public address it has observed, so when
@@ -488,7 +495,8 @@ tasks: none
 health_checks:
   - relay
   - reachability
-access_mode: open   # upstream default; invite membership is not exposed as an action
+  - access
+access_mode: open | invite   # Configure Relay → Access; open on install
 secrets_on_volume:
   - /data/seed
   - /data/members.json

@@ -42,7 +42,7 @@ If your server truly has a public IP with unfiltered UDP but the check still fai
 
 ## The status page
 
-The **Status Page** interface, on the service's Dashboard, shows the same things in a browser. It opens with whether peers can reach the relay, in plain language, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that is the public key with a QR code to scan from a phone.
+The **Status Page** interface, on the service's Dashboard, shows the same things in a browser. It opens with whether peers can reach the relay, in plain language, and whether the relay is public or private, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that, on a public relay, is the public key with a QR code to scan from a phone; on a private relay the key alone lets nobody in, so the page points you at invites instead and leaves the QR code out.
 
 Traffic is counted *this run* — it resets when the service restarts, so treat it as a current-session figure rather than a lifetime total.
 
@@ -62,11 +62,15 @@ The same applies to uninstalling: it deletes the seed, and with it the public ke
 
 The relay is open to anyone by default, which is the normal way to run one. Bandwidth is the cost: every relayed byte comes in and goes out again.
 
-**Configure Relay** covers the rest — capacity limits, per-connection rate and byte caps, a banlist for handling abuse, and the region/operator labels the relay publishes about itself.
+**Configure Relay** covers the rest — whether the relay is public or private, capacity limits, per-connection rate and byte caps, a banlist for handling abuse, and the region/operator labels the relay publishes about itself.
 
 ### Running a private relay
 
-The relay can also run closed, admitting only people you've invited. You manage that from the **members page** in your browser.
+The relay can also run **private**, admitting only people you've invited. Two steps, in either order: switch **Access** to **Private** in **Configure Relay**, and add your people on the **members page** in your browser.
+
+If people already use your relay, add them and send their invites *first* — an invite works on a public relay too, so nobody is cut off when you switch. If you're starting fresh, switch first if you like: a private relay with no members simply lets nobody in, and the **Access** health check and the Status Page both say so until you add someone.
+
+To add members:
 
 **1. Get the admin token.** Run **Show Admin Token**. The relay generates it the first time it starts, so if you've never started the service yet the action will tell you to do that first. Tap to copy.
 
@@ -76,7 +80,7 @@ The relay can also run closed, admitting only people you've invited. You manage 
 
 On a LAN address your browser offers no clipboard — that's a browser rule about plain HTTP, not a fault here — so **Copy invite** shows the invite as selected text instead. Copy it with ⌘C or Ctrl-C.
 
-Two things to know. An invite is a **bearer credential** — whoever holds the string is that member, so send it like a password and issue one per person, not one per device. And the relay is still **open** until you switch it: this package doesn't expose that switch, deliberately, because turning on invite mode before you've added anyone refuses *every* connection. Add your members first, then set `MIRALL_RELAY_ACCESS=invite` as described in [OPERATIONS.md](https://github.com/ok/mirall-relay/blob/main/OPERATIONS.md).
+Two things to know. An invite is a **bearer credential** — whoever holds the string is that member, so send it like a password and issue one per person, not one per device. And on a private relay the public key on its own no longer lets anyone connect: give people invites, not the key.
 
 Keep the members list in your backups — it holds every member's credential, and losing it means re-inviting everyone.
 
