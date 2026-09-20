@@ -40,14 +40,18 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
   //
   // Upstream gates /admin/* separately on a bearer token from /data/admin-token,
   // so the membership write surface is not exposed by exporting this.
+  //
+  // One interface, not one per page. The members page is /admin/ on this same
+  // binding and both pages carry the same Status | Members nav, so a second
+  // "Members Page" entry only split one UI into two launch points.
   const adminHost = sdk.MultiHost.of(effects, 'admin')
   const adminOrigin = await adminHost.bindPort(adminPort, { protocol: 'http' })
 
   const admin = sdk.createInterface(effects, {
-    name: i18n('Status Page'),
+    name: i18n('Relay UI'),
     id: 'admin',
     description: i18n(
-      'The relay’s public key with a QR code, whether peers can reach it, and the traffic it has carried',
+      'The relay’s pages in one place: status — public key, reachability, traffic — and Members, where invites are created and revoked with the admin token.',
     ),
     type: 'ui',
     masked: false,
@@ -57,42 +61,5 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     query: {},
   })
 
-  // Same origin, same binding — only the path differs, so this adds no new
-  // exposure: /admin/ has always been served on the port the Status Page is on.
-  // What it adds is a StartOS-level entry point. Upstream 0.3.0 does now link the
-  // page from the status page's nav in every access mode (pageNav in
-  // src/operator/status/page.js), which it did not before, so this is no longer
-  // the only way in — it is the direct one: the page is listed and clickable
-  // beside every other interface, without a detour through the status page.
-  //
-  // The write surface stays gated on the bearer token from /data/admin-token;
-  // the Show Admin Token action is how the operator gets it. Only the page shell
-  // and its assets are anonymous.
-  //
-  // Reusing adminOrigin rather than binding a second port matters: addresses are
-  // enabled per binding, so this inherits whatever the user already enabled for
-  // the Status Page instead of arriving with everything switched off.
-  const members = sdk.createInterface(effects, {
-    name: i18n('Members Page'),
-    id: 'members',
-    description: i18n(
-      'Create, re-show and revoke member invites. Unlocked with the admin token — run the Show Admin Token action to get it.',
-    ),
-    type: 'ui',
-    // The URL carries no credential: the token is typed into the page, never
-    // put in the address.
-    masked: false,
-    schemeOverride: null,
-    username: null,
-    // Trailing slash required. Upstream 308s /admin to admin/ because the page's
-    // asset URLs are document-relative, and a bare /admin would resolve
-    // style.css against the root.
-    path: '/admin/',
-    query: {},
-  })
-
-  return [
-    await relayOrigin.export([relay]),
-    await adminOrigin.export([admin, members]),
-  ]
+  return [await relayOrigin.export([relay]), await adminOrigin.export([admin])]
 })

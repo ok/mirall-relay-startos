@@ -41,7 +41,7 @@ const dict = {
   'Anyone holding this token can add and remove members. Treat it like a password.': 55,
   'Admin Token': 56,
   'No token exists yet. The relay mints it on its first successful start — start the service, then run this action again.': 57,
-  'Open the Members Page from the Interfaces tab and paste this when it asks. The page keeps it for that browser tab only, so a new tab asks again.': 58,
+  'Open the Relay UI, choose Members at the top, and paste this when it asks. The page keeps it for that browser tab only, so a new tab asks again.': 58,
 
   // actions/testReachability.ts
   'Test Reachability': 25,
@@ -62,8 +62,6 @@ const dict = {
   // interfaces.ts
   'Relay Endpoint': 38,
   'The UDP endpoint peers dial. Reachable from the public internet, or the relay is of no use.': 39,
-  'Members Page': 59,
-  'Create, re-show and revoke member invites. Unlocked with the admin token — run the Show Admin Token action to get it.': 60,
 
   // main.ts
   'Peers on the internet can reach this relay': 40,
@@ -74,8 +72,8 @@ const dict = {
   'The relay is listening': 45,
   'The relay is not listening': 46,
   'Internet Reachability': 47,
-  'Status Page': 48,
-  'The relay’s public key with a QR code, whether peers can reach it, and the traffic it has carried': 49,
+  'Relay UI': 48,
+  'The relay’s pages in one place: status — public key, reachability, traffic — and Members, where invites are created and revoked with the admin token.': 49,
   'Running, but reachability was asserted rather than measured — "Assume Reachable" is on. Confirm it from another machine.': 50,
   'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.': 51,
   'Assumed — not measured': 52,

@@ -164,22 +164,21 @@ service on the server.
 
 ## Network Access and Interfaces
 
-Three interfaces are exported: the UDP port peers dial, the operator status
-page, and the members page that shares its binding.
+Two interfaces are exported: the UDP port peers dial, and one UI carrying the
+operator status page and the members page.
 
 | Interface      | Id        | Type | Port      | Path      | Protocol    | Exported |
 | -------------- | --------- | ---- | --------- | --------- | ----------- | -------- |
 | Relay Endpoint | `relay`   | api  | 49737/udp | —         | Noise (raw) | Yes      |
-| Status Page    | `admin`   | ui   | 9200/tcp  | `/`       | HTTP        | Yes      |
-| Members Page   | `members` | ui   | 9200/tcp  | `/admin/` | HTTP        | Yes      |
+| Relay UI       | `admin`   | ui   | 9200/tcp  | `/`       | HTTP        | Yes      |
 
-`admin` and `members` are two interfaces over **one binding**: the anonymous
-status page at `/`, and upstream's token-gated members page at `/admin/` where
-invites are created and revoked. Exporting the second adds no exposure — that
-path has always been served on this port — it adds a StartOS-level entry point,
-so the page is listed and clickable beside every other interface. Since both
-interfaces share the binding, the members page inherits whatever addresses the
-user has enabled for the Status Page rather than arriving with all of them off.
+`admin` is the one UI interface. It opens upstream's anonymous status page at `/`;
+the token-gated members page, where invites are created and revoked, is
+`/admin/` on the same binding and is reached from the **Status | Members** nav
+both pages carry. It used to be exported as a second `members` interface, which
+only turned one UI into two launch points in StartOS's *Open UI* menu. Nothing
+about exposure changes: `/admin/` has always been served on this port, and it
+follows whatever addresses the user enables for this interface.
 
 Upstream 0.3.0 also links the members page from the status page's own two-item
 nav, in every access mode (`pageNav` in `src/operator/status/page.js`). Before
@@ -279,7 +278,7 @@ and writes the result back. It changes nothing else, never interrupts the runnin
 relay, and is safe to repeat. Returns the z-base-32 key, copyable and as a QR
 code.
 
-**Show Admin Token** — run it to unlock the **Members Page**. Upstream mints the
+**Show Admin Token** — run it to unlock the members page. It shows the token directly, with no confirmation step; the caution about treating it like a password sits beside the token. Upstream mints the
 bearer token for `/admin/*` on the first boot of the relay and logs it exactly
 once, on that boot, because an operator on StartOS has no shell; after that line
 scrolls away there is no second chance. This action reads the token from
@@ -347,6 +346,10 @@ has a public IP and it is the probe that is wrong. The long grace period is
 deliberate: the node has to join the DHT and have its address confirmed by other
 nodes before it can know, so red for the first minute or two means nothing.
 
+While it is failing the check is re-run every 30 seconds, not at the SDK's default
+of every second: each failure is a log line, and a firewalled relay stays that way
+for minutes or hours, which buried the relay's own log under one line per second.
+
 **Access** never fails. A private relay with no members reports success with
 "nobody can connect": that is a state the operator chose, and also what revoking
 the last member produces, so it is labelled rather than painted red.
@@ -388,8 +391,8 @@ It raises no task. The port forward has to exist wherever it now runs.
    install, and if it did not get 49737, free that port rather than forwarding
    the one it shows.
 4. **Invites are managed on upstream's members page, not by a StartOS action.**
-   Members are created, re-shown and revoked on the **Members Page** interface,
-   which is `/admin/` on the Status Page's binding. Auth is the admin token from
+   Members are created, re-shown and revoked on the members page — *Open UI*,
+   then **Members** — which is `/admin/` on the UI's binding. Auth is the admin token from
    `/data/admin-token` — get it from the *Show Admin Token* action, which is there
    because upstream logs the token exactly once, on the boot that mints it.
 
@@ -443,7 +446,31 @@ It raises no task. The port forward has to exist wherever it now runs.
    change, on a connection whose ISP forces periodic reconnects; check the
    *Status Page* for the public address the relay currently believes it has, and
    whether your port forward matches it.
-10. **The status page has no authentication of its own.** StartOS is what stands
+10. **An install or update drops the Outbound Gateway, and neither a Restart nor
+   a Stop/Start reliably brings it back.** Confirmed with a routing capture on a live box (2026-09-20). A
+   package install or update gives the service a new LXC container with a new
+   IP. StartOS removes the policy-routing rule for the old IP
+   (`ip rule from <container IP> lookup <1000 + gateway ifindex>`) and does not
+   create one for the new IP, while its database still reports the gateway as
+   set. The relay's egress then leaves via the default WAN, HyperDHT observes the
+   home address, the reachability probe is aimed at it, and the relay reports
+   `firewalled: true` although the forward is intact. The tell is
+   `reachability.publicHost` in `/status.json` (the Status Page's *Seen from
+   outside as*) showing the home IP.
+
+   A **Restart** reuses the container, so it neither causes nor repairs this.
+   **Stop then Start** is not a reliable repair: it was seen to work once and to
+   fail once on the same box on the same day, the container and its missing rule
+   surviving it. What repaired it every time is clearing and re-setting the
+   gateway (`start-cli package set-outbound-gateway mirall-relay`, then again
+   with the gateway id, or the *Set Outbound Gateway* action twice); setting the
+   same value again without clearing is a no-op. Once the route
+   is right the relay recovers unattended through upstream's re-probe, but only
+   after HyperDHT's view of its own address settles — 28 minutes in the observed
+   case, because it samples its address only when it meets new nodes. A restart
+   at that point takes under a minute. This is a StartOS defect, not something
+   the package can work around from inside the container.
+11. **The status page has no authentication of its own.** StartOS is what stands
    in front of it. Exposing the *Status Page* interface on a public gateway
    publishes the relay's traffic counters and DHT state — see
    [Network Access and Interfaces](#network-access-and-interfaces).
@@ -481,8 +508,7 @@ startos_managed_env_vars:
 dependencies: none
 interfaces:
   relay: { type: api, port: 49737, protocol: udp }
-  admin: { type: ui, port: 9200, protocol: http, path: "/", name: Status Page }
-  members: { type: ui, port: 9200, protocol: http, path: "/admin/", name: Members Page }
+  admin: { type: ui, port: 9200, protocol: http, path: "/", name: Relay UI }
 actions:
   - show-relay-key
   - show-admin-token

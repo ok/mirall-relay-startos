@@ -36,13 +36,15 @@ For more detail, run **Test Reachability**: it reports whether the relay is fire
 
 **If reachability goes red on its own, restart the service first.** Many home connections are given a new public IP by the ISP every so often, and when that happens the relay keeps reporting *firewalled* for a while even though your port forward is fine — it's still probing the address it used to have. It does sort itself out eventually, but that can take an hour or more; restarting re-checks straight away.
 
+**If it goes red right after an update and you use an Outbound Gateway, set the gateway again — a Restart alone is not enough.** This applies if you expose the relay through a tunnel (StartTunnel or similar) and set an outbound gateway for it. Installing or updating gives the service a fresh container, and StartOS currently does not re-apply the outbound gateway to it, so the relay's traffic leaves through your home connection instead of the tunnel and the reachability check tests the wrong address. The tell is on the **Status Page**: *Seen from outside as* shows your home IP rather than the tunnel's. To fix it, open the service's **Set Outbound Gateway** action, switch it back to the default, save, then set your tunnel gateway again and save. Setting the same gateway without clearing it first does nothing. Then **Restart** the relay and it is reachable again within about a minute. Without the restart the relay still recovers by itself from 0.4.0:1 on, but that can take half an hour. Stopping and starting the service does not reliably bring the gateway back.
+
 If it stays red after a restart, check the public address shown on the **Status Page** and make sure your router still forwards UDP 49737 to this server — a forward set up against an older address, or pointed at a LAN address the server no longer has, is the usual culprit.
 
 If your server truly has a public IP with unfiltered UDP but the check still fails, turn on **Assume Reachable** in **Configure Relay**. Only do this when you're certain — a relay that assumes wrongly advertises itself and then fails every connection it's offered. With it on, the health check and **Test Reachability** both say the reachability was *asserted rather than measured*, because at that point nothing has actually tested it.
 
 ## The status page
 
-The **Status Page** interface, on the service's Dashboard, shows the same things in a browser. It opens with whether peers can reach the relay, in plain language, and whether the relay is public or private, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that, on a public relay, is the public key with a QR code to scan from a phone; on a private relay the key alone lets nobody in, so the page points you at invites instead and leaves the QR code out.
+**Open UI**, on the service's Dashboard, shows the same things in a browser. It opens on the status page; the **Members** link at the top leads to the page where you manage invites. It opens with whether peers can reach the relay, in plain language, and whether the relay is public or private, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that, on a public relay, is the public key with a QR code to scan from a phone; on a private relay the key alone lets nobody in, so the page points you at invites instead and leaves the QR code out.
 
 Traffic is counted *this run* — it resets when the service restarts, so treat it as a current-session figure rather than a lifetime total.
 
@@ -74,7 +76,7 @@ To add members:
 
 **1. Get the admin token.** Run **Show Admin Token**. The relay generates it the first time it starts, so if you've never started the service yet the action will tell you to do that first. Tap to copy.
 
-**2. Open the members page.** It's the **Members Page** interface, next to the Status Page — open it the way you open any other interface. Paste the token once when it asks; the page keeps it for that browser tab only, and asks again in a new one.
+**2. Open the members page.** Click **Open UI**, then **Members** at the top of the page. Paste the token once when it asks; the page keeps it for that browser tab only, and asks again in a new one.
 
 **3. Add a member.** Give them a short label. Each row then has a **Copy invite** button that puts a `mirall://relay/…` line on your clipboard; send it to that person and they paste it into Mirall in place of a relay key. You can copy an invite again later if they lose it, and revoke one at any time — revoking cuts their live connections, not just future ones. Revoked members fold away into their own section rather than cluttering the list.
 
