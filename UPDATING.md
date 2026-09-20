@@ -50,8 +50,9 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
    - `/data/admin-token` is still a plain-text file holding the token and nothing else
      (`readAdminTokenScript`) — if upstream ever wraps it in JSON, *Show Admin Token*
      returns the wrapper and the members page rejects it,
-   - the members page still lives at `/admin/`, with `/admin` 308ing to it
-     (`interfaces.ts`, the `members` interface's `path`),
+   - the members page still lives at `/admin/` and the status page still links it
+     from its nav — it is no longer its own interface, so that link is the only way
+     in from StartOS (`instructions.md` and the *Show Admin Token* message say so),
    - `/status.json` still returns `access: { mode, members: { active, total } | null,
      allowlisted }` with `mode` one of `open`, `allowlist`, `invite` (`StatusAccess`),
      and `MIRALL_RELAY_ACCESS` still accepts exactly `open` and `invite` — the
