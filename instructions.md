@@ -44,7 +44,7 @@ If your server truly has a public IP with unfiltered UDP but the check still fai
 
 ## The status page
 
-The **Status Page** interface, on the service's Dashboard, shows the same things in a browser. It opens with whether peers can reach the relay, in plain language, and whether the relay is public or private, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that, on a public relay, is the public key with a QR code to scan from a phone; on a private relay the key alone lets nobody in, so the page points you at invites instead and leaves the QR code out.
+**Open UI**, on the service's Dashboard, shows the same things in a browser. It opens on the status page; the **Members** link at the top leads to the page where you manage invites. It opens with whether peers can reach the relay, in plain language, and whether the relay is public or private, and four tiles: live links, traffic relayed since the last restart, members, and uptime. Below that, on a public relay, is the public key with a QR code to scan from a phone; on a private relay the key alone lets nobody in, so the page points you at invites instead and leaves the QR code out.
 
 Traffic is counted *this run* — it resets when the service restarts, so treat it as a current-session figure rather than a lifetime total.
 
@@ -76,7 +76,7 @@ To add members:
 
 **1. Get the admin token.** Run **Show Admin Token**. The relay generates it the first time it starts, so if you've never started the service yet the action will tell you to do that first. Tap to copy.
 
-**2. Open the members page.** It's the **Members Page** interface, next to the Status Page — open it the way you open any other interface. Paste the token once when it asks; the page keeps it for that browser tab only, and asks again in a new one.
+**2. Open the members page.** Click **Open UI**, then **Members** at the top of the page. Paste the token once when it asks; the page keeps it for that browser tab only, and asks again in a new one.
 
 **3. Add a member.** Give them a short label. Each row then has a **Copy invite** button that puts a `mirall://relay/…` line on your clipboard; send it to that person and they paste it into Mirall in place of a relay key. You can copy an invite again later if they lose it, and revoke one at any time — revoking cuts their live connections, not just future ones. Revoked members fold away into their own section rather than cluttering the list.
 

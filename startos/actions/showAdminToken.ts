@@ -23,9 +23,9 @@ export const showAdminToken = sdk.Action.withoutInput(
     description: i18n(
       'Reveal the token that unlocks the Members Page, where invites are created and revoked.',
     ),
-    warning: i18n(
-      'Anyone holding this token can add and remove members. Treat it like a password.',
-    ),
+    // No warning: it puts a confirmation dialog in front of a read-only action.
+    // The caution sits beside the token itself, where it is actually read.
+    warning: null,
     // 'any' on purpose: the token is a file on the volume, so this works with
     // the service stopped — which is exactly when an operator who has lost it
     // is most likely to be looking.
@@ -70,12 +70,14 @@ export const showAdminToken = sdk.Action.withoutInput(
       version: '1' as const,
       title: i18n('Admin Token'),
       message: i18n(
-        'Open the Members Page from the Interfaces tab and paste this when it asks. The page keeps it for that browser tab only, so a new tab asks again.',
+        'Open the Relay UI, choose Members at the top, and paste this when it asks. The page keeps it for that browser tab only, so a new tab asks again.',
       ),
       result: {
         type: 'single' as const,
         name: i18n('Admin Token'),
-        description: null,
+        description: i18n(
+          'Anyone holding this token can add and remove members. Treat it like a password.',
+        ),
         value: token,
         masked: true,
         copyable: true,

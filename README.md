@@ -164,22 +164,21 @@ service on the server.
 
 ## Network Access and Interfaces
 
-Three interfaces are exported: the UDP port peers dial, the operator status
-page, and the members page that shares its binding.
+Two interfaces are exported: the UDP port peers dial, and one UI carrying the
+operator status page and the members page.
 
 | Interface      | Id        | Type | Port      | Path      | Protocol    | Exported |
 | -------------- | --------- | ---- | --------- | --------- | ----------- | -------- |
 | Relay Endpoint | `relay`   | api  | 49737/udp | —         | Noise (raw) | Yes      |
-| Status Page    | `admin`   | ui   | 9200/tcp  | `/`       | HTTP        | Yes      |
-| Members Page   | `members` | ui   | 9200/tcp  | `/admin/` | HTTP        | Yes      |
+| Relay UI       | `admin`   | ui   | 9200/tcp  | `/`       | HTTP        | Yes      |
 
-`admin` and `members` are two interfaces over **one binding**: the anonymous
-status page at `/`, and upstream's token-gated members page at `/admin/` where
-invites are created and revoked. Exporting the second adds no exposure — that
-path has always been served on this port — it adds a StartOS-level entry point,
-so the page is listed and clickable beside every other interface. Since both
-interfaces share the binding, the members page inherits whatever addresses the
-user has enabled for the Status Page rather than arriving with all of them off.
+`admin` is the one UI interface. It opens upstream's anonymous status page at `/`;
+the token-gated members page, where invites are created and revoked, is
+`/admin/` on the same binding and is reached from the **Status | Members** nav
+both pages carry. It used to be exported as a second `members` interface, which
+only turned one UI into two launch points in StartOS's *Open UI* menu. Nothing
+about exposure changes: `/admin/` has always been served on this port, and it
+follows whatever addresses the user enables for this interface.
 
 Upstream 0.3.0 also links the members page from the status page's own two-item
 nav, in every access mode (`pageNav` in `src/operator/status/page.js`). Before
@@ -279,7 +278,7 @@ and writes the result back. It changes nothing else, never interrupts the runnin
 relay, and is safe to repeat. Returns the z-base-32 key, copyable and as a QR
 code.
 
-**Show Admin Token** — run it to unlock the **Members Page**. Upstream mints the
+**Show Admin Token** — run it to unlock the members page. It shows the token directly, with no confirmation step; the caution about treating it like a password sits beside the token. Upstream mints the
 bearer token for `/admin/*` on the first boot of the relay and logs it exactly
 once, on that boot, because an operator on StartOS has no shell; after that line
 scrolls away there is no second chance. This action reads the token from
@@ -392,8 +391,8 @@ It raises no task. The port forward has to exist wherever it now runs.
    install, and if it did not get 49737, free that port rather than forwarding
    the one it shows.
 4. **Invites are managed on upstream's members page, not by a StartOS action.**
-   Members are created, re-shown and revoked on the **Members Page** interface,
-   which is `/admin/` on the Status Page's binding. Auth is the admin token from
+   Members are created, re-shown and revoked on the members page — *Open UI*,
+   then **Members** — which is `/admin/` on the UI's binding. Auth is the admin token from
    `/data/admin-token` — get it from the *Show Admin Token* action, which is there
    because upstream logs the token exactly once, on the boot that mints it.
 
@@ -509,8 +508,7 @@ startos_managed_env_vars:
 dependencies: none
 interfaces:
   relay: { type: api, port: 49737, protocol: udp }
-  admin: { type: ui, port: 9200, protocol: http, path: "/", name: Status Page }
-  members: { type: ui, port: 9200, protocol: http, path: "/admin/", name: Members Page }
+  admin: { type: ui, port: 9200, protocol: http, path: "/", name: Relay UI }
 actions:
   - show-relay-key
   - show-admin-token
