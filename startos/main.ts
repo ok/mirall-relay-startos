@@ -177,6 +177,13 @@ export const main = sdk.setupMain(async ({ effects }) => {
         ready: {
           display: i18n('Internet Reachability'),
           fn: checkReachability,
+          // The default trigger re-polls a failing check every second and logs
+          // each failure. Firewalled is a state that lasts minutes or hours, so
+          // that buried the relay's own log lines under one per second.
+          trigger: sdk.trigger.statusTrigger(30_000, {
+            starting: 2_000,
+            failure: 30_000,
+          }),
           // HyperDHT takes a while to bootstrap and have its address confirmed
           // by other nodes; a red flash before that means nothing.
           gracePeriod: 120_000,

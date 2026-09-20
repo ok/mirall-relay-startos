@@ -347,6 +347,10 @@ has a public IP and it is the probe that is wrong. The long grace period is
 deliberate: the node has to join the DHT and have its address confirmed by other
 nodes before it can know, so red for the first minute or two means nothing.
 
+While it is failing the check is re-run every 30 seconds, not at the SDK's default
+of every second: each failure is a log line, and a firewalled relay stays that way
+for minutes or hours, which buried the relay's own log under one line per second.
+
 **Access** never fails. A private relay with no members reports success with
 "nobody can connect": that is a state the operator chose, and also what revoking
 the last member produces, so it is labelled rather than painted red.
