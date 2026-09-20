@@ -6,6 +6,10 @@ const shape = z.looseObject({
   // service is stopped. The seed itself never leaves the container.
   publicKey: z.string().catch(''),
 
+  // Upstream's values: 'open' is a public relay, 'invite' a private one. An
+  // install from before this field existed reads as 'open', which it was.
+  access: z.enum(['open', 'invite']).catch('open'),
+
   // Labels published in /metrics and the capability doc.
   region: z.string().catch('unknown'),
   operator: z.string().catch('unknown'),

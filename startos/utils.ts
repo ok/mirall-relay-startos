@@ -135,3 +135,18 @@ export async function fetchReadyz(): Promise<ReadyzBody> {
   })
   return (await res.json()) as ReadyzBody
 }
+
+/** The access block of the relay's /status.json. Counts only, never labels. */
+export type StatusAccess = {
+  mode: 'open' | 'allowlist' | 'invite'
+  members: { active: number; total: number } | null
+  allowlisted: number | null
+}
+
+/** Fetch /status.json. Rejects if the admin server is not answering. */
+export async function fetchStatus(): Promise<{ access: StatusAccess }> {
+  const res = await fetch(`${adminBaseUrl}/status.json`, {
+    signal: AbortSignal.timeout(3000),
+  })
+  return (await res.json()) as { access: StatusAccess }
+}

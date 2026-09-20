@@ -5,6 +5,20 @@ import { sdk } from '../sdk'
 const { InputSpec, Value } = sdk
 
 const inputSpec = InputSpec.of({
+  access: Value.select({
+    name: i18n('Access'),
+    description: i18n(
+      'Public: anyone with the relay key can connect. Private: only people you have invited on the Members Page can connect.',
+    ),
+    footnote: i18n(
+      'With no members yet, a private relay lets nobody in. You can add members before or after switching.',
+    ),
+    default: 'open',
+    values: {
+      open: i18n('Public — anyone with the relay key'),
+      invite: i18n('Private — invited members only'),
+    },
+  }),
   region: Value.text({
     name: i18n('Region'),
     description: i18n(
@@ -77,9 +91,9 @@ const inputSpec = InputSpec.of({
     ],
   }),
   allowlist: Value.text({
-    name: i18n('Allowlist'),
+    name: i18n('Static Keys (advanced)'),
     description: i18n(
-      'Private relay: only these peer keys may connect, and BOTH peers of a connection must be listed. Note that a Mirall client’s DHT key is fresh on every app start, so this can only pin infrastructure you control. Leave empty for an open relay.',
+      'Fixed peer keys that are always admitted; BOTH peers of a connection must be listed. This cannot admit Mirall users, whose key is new on every app start — use Access → Private and the Members Page for people. On a public relay, setting this restricts the relay to exactly these keys.',
     ),
     required: false,
     default: null,
@@ -114,7 +128,7 @@ export const configure = sdk.Action.withInput(
   async () => ({
     name: i18n('Configure Relay'),
     description: i18n(
-      'Set the relay’s labels, capacity limits and access control',
+      'Set whether the relay is public or private, its labels and its capacity limits',
     ),
     warning: null,
     allowedStatuses: 'any',
@@ -128,6 +142,7 @@ export const configure = sdk.Action.withInput(
     const store = await storeJson.read((s) => s).once()
     if (!store) return null
     return {
+      access: store.access,
       region: store.region,
       operator: store.operator,
       assumeReachable: store.assumeReachable,
