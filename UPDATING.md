@@ -46,7 +46,11 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
    - `node` is still at `/nodejs/bin/node` (`nodeBin`),
    - `src/keys.js` still exports `loadOrCreateSeed`, `keyPairFromSeed` and `publicKeyZ32`
      (`prepareIdentityScript`),
-   - `/readyz` still returns `{ ready, firewalled, probed, publicKey }` (`ReadyzBody`),
+   - `/readyz` still returns `{ ready, state, firewalled, directlyReachable, probed,
+     publicKey }` (`ReadyzBody`), with `state` one of `reachable`, `firewalled`,
+     `port-unstable`, `unknown`, `starting`, `stopped` (`ReachabilityState`) — the
+     health check switches on it, and an unknown value falls through to the
+     `firewalled`-only logic,
    - `/data/admin-token` is still a plain-text file holding the token and nothing else
      (`readAdminTokenScript`) — if upstream ever wraps it in JSON, *Show Admin Token*
      returns the wrapper and the members page rejects it,
@@ -55,6 +59,8 @@ gh release view -R ok/mirall-relay --json tagName -q .tagName
      in from StartOS (`instructions.md` and the *Show Admin Token* message say so),
    - `/status.json` still returns `access: { mode, members: { active, total } | null,
      allowlisted }` with `mode` one of `open`, `allowlist`, `invite` (`StatusAccess`),
+     and `reachability: { state, publicHost, publicPort, portRandomized, bound }`
+     (`StatusReachability`, read by *Test Reachability*),
      and `MIRALL_RELAY_ACCESS` still accepts exactly `open` and `invite` — the
      *Access* field writes those two values straight into the environment.
 

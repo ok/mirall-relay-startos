@@ -1,6 +1,24 @@
 import { i18n } from '../i18n'
 import { sdk } from '../sdk'
-import { adminBaseUrl, fetchReadyz } from '../utils'
+import {
+  adminBaseUrl,
+  fetchReadyz,
+  fetchStatus,
+  StatusReachability,
+} from '../utils'
+
+// The address the relay believes the internet sees, and why it is not usable
+// when it is not. The configured port is never printed as if it were observed.
+function seenFromOutside(r: StatusReachability): string {
+  if (!r.publicHost) return i18n('not known yet')
+  if (r.portRandomized || !r.publicPort) {
+    return `${r.publicHost} (${i18n('port changes per destination')})`
+  }
+  if (r.bound && r.publicPort !== r.bound.port) {
+    return `${r.publicHost}:${r.publicPort} (${i18n('listens on')} ${r.bound.port})`
+  }
+  return `${r.publicHost}:${r.publicPort}`
+}
 
 type CapabilityDoc = {
   version: string
@@ -31,23 +49,37 @@ export const testReachability = sdk.Action.withoutInput(
   }),
 
   async () => {
-    const { ready, firewalled, probed } = await fetchReadyz()
+    const { ready, state, firewalled, probed } = await fetchReadyz()
+    const { reachability } = await fetchStatus()
     const res = await fetch(`${adminBaseUrl}/.well-known/mirall-relay.json`, {
       signal: AbortSignal.timeout(3000),
     })
     const doc = (await res.json()) as CapabilityDoc
 
+    // Before upstream 0.4.2 there is no `state`; firewalled: false was the
+    // whole verdict then.
+    const reachable =
+      state === undefined ? firewalled === false : state === 'reachable'
+
     const verdict = !ready
       ? i18n('The relay is still starting up. Try again in a minute.')
       : firewalled
         ? i18n(
-            'Firewalled: peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.',
+            'Firewalled: peers cannot reach this relay. Switch on a Public address under Interfaces → Relay Endpoint: StartTunnel, with the Outbound Gateway set to StartTunnel too, or your router, with UDP 49737 forwarded to this server. If the server has a public IP of its own and it still fails, turn on "Assume Reachable".',
           )
-        : probed === false
+        : state === 'port-unstable'
           ? i18n(
-              'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.',
+              'Port unstable: peers can reach the relay, but its outbound UDP port is rewritten on the way out, so they cannot connect to it directly. Check in this order: its Outbound Gateway must be the gateway its public address is on (StartTunnel if you publish through StartTunnel); restart the relay to clear stale NAT state; if it persists, the network in front of it rewrites ports, so use a router port forward on a public IPv4, or StartTunnel. See Limitations in the instructions.',
             )
-          : i18n('Reachable: the relay is bridging connections.')
+          : state === 'unknown'
+            ? i18n(
+                'Still learning its public address, as after a change of your public IP. Try again in a few minutes.',
+              )
+            : probed === false
+              ? i18n(
+                  'Assumed reachable: "Assume Reachable" is on, so nothing measured this. Run the probe from another machine before publishing the key.',
+                )
+              : i18n('Reachable: the relay is bridging connections.')
 
     return {
       version: '1' as const,
@@ -69,12 +101,20 @@ export const testReachability = sdk.Action.withoutInput(
             type: 'single' as const,
             name: i18n('Reachable from the internet'),
             description: null,
-            value:
-              firewalled === false
-                ? probed === false
-                  ? i18n('Assumed — not measured')
-                  : i18n('Yes')
-                : i18n('No'),
+            value: reachable
+              ? probed === false
+                ? i18n('Assumed — not measured')
+                : i18n('Yes')
+              : i18n('No'),
+            masked: false,
+            copyable: false,
+            qr: false,
+          },
+          {
+            type: 'single' as const,
+            name: i18n('Seen from outside as'),
+            description: null,
+            value: seenFromOutside(reachability),
             masked: false,
             copyable: false,
             qr: false,
