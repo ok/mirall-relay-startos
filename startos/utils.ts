@@ -117,9 +117,23 @@ try {
 }
 `
 
+/** Upstream's single reachability verdict, shared by /readyz and /status.json. */
+export type ReachabilityState =
+  | 'reachable'
+  | 'firewalled'
+  | 'port-unstable'
+  | 'unknown'
+  | 'starting'
+  | 'stopped'
+
 /** The relay's /readyz response. */
 export type ReadyzBody = {
   ready: boolean
+  // Absent before upstream 0.4.2. `firewalled: false` alone is not reachable:
+  // a relay whose outbound port is rewritten is 'port-unstable', and one still
+  // learning its public address is 'unknown'.
+  state?: ReachabilityState
+  directlyReachable?: boolean
   firewalled: boolean | null
   // False when MIRALL_RELAY_ASSUME_REACHABLE forced `firewalled` rather than
   // hyperdht measuring it. Without this, `firewalled: false` reads as a verdict
@@ -143,10 +157,24 @@ export type StatusAccess = {
   allowlisted: number | null
 }
 
+/** The part of /status.json's reachability block that explains a verdict. */
+export type StatusReachability = {
+  state: ReachabilityState
+  publicHost: string | null
+  publicPort: number | null
+  portRandomized: boolean
+  bound: { port: number } | null
+}
+
+export type StatusBody = {
+  access: StatusAccess
+  reachability: StatusReachability
+}
+
 /** Fetch /status.json. Rejects if the admin server is not answering. */
-export async function fetchStatus(): Promise<{ access: StatusAccess }> {
+export async function fetchStatus(): Promise<StatusBody> {
   const res = await fetch(`${adminBaseUrl}/status.json`, {
     signal: AbortSignal.timeout(3000),
   })
-  return (await res.json()) as { access: StatusAccess }
+  return (await res.json()) as StatusBody
 }

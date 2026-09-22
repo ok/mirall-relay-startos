@@ -14,7 +14,12 @@ You've installed a relay for [Mirall](https://mirall.app). It connects two Miral
 This is the whole job, and it's the one thing StartOS can't do for you. Peers connect to the relay directly over UDP after a hole punch, so the port has to arrive here:
 
 - **Server with a public IP** (VPS, colo): nothing to do, beyond any firewall it has.
-- **Home server behind a router**: forward UDP 49737 to this server. Check the **Relay Endpoint** interface on the Dashboard first — StartOS prefers port 49737 but will pick another if it's taken, and you forward the one shown there.
+- **Home server behind a router with a public IPv4**: forward UDP 49737 to this server. Check the **Relay Endpoint** interface on the Dashboard first — StartOS prefers port 49737 but will pick another if it's taken, and you forward the one shown there. The router's external port must be 49737 too.
+- **No public IPv4** (CGNAT or DS-Lite, common on cable and mobile): a forward is impossible. Publish the relay through StartTunnel instead — see below.
+
+### Publishing through StartTunnel
+
+The relay must send and receive through the same gateway. If its public address is on StartTunnel, set its **Outbound Gateway** to StartTunnel too; if it is on your router, leave the Outbound Gateway at the default. A mismatch makes the relay unreachable, and StartOS does not warn you about it. See *Limitations* 12 in the package README.
 
 **2. Copy the relay's public key.**
 
@@ -32,7 +37,11 @@ The **Internet Reachability** health check answers the only question that matter
 
 Give it a couple of minutes after starting: the relay has to join the DHT and have its address confirmed by other nodes before it knows whether it's reachable.
 
-For more detail, run **Test Reachability**: it reports whether the relay is firewalled, along with the version and limits it advertises to clients.
+For more detail, run **Test Reachability**: it reports whether peers can connect to the relay directly and, if not, why; the address the internet sees it at; and the version and limits it advertises to clients.
+
+**If it says the port is unstable**, peers can reach the relay but something rewrites its outbound port on the way out, so they cannot connect to it. Try, in order: make the **Outbound Gateway** the same gateway its public address is on; restart the relay; if it stays red, see *Limitations* 12 in the package README.
+
+**If it shows *loading* with "Re-learning its public address"**, your public IP just changed. That normally settles within a few minutes; it turns red only if it takes longer than 10.
 
 **If reachability goes red on its own, restart the service first.** Many home connections are given a new public IP by the ISP every so often, and when that happens the relay keeps reporting *firewalled* for a while even though your port forward is fine — it's still probing the address it used to have. It does sort itself out eventually, but that can take an hour or more; restarting re-checks straight away.
 

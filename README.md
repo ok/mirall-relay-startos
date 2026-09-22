@@ -67,6 +67,7 @@ particular that the external port must be **exactly 49737**.
 - [Tasks](#tasks)
 - [Health Checks](#health-checks)
 - [Backups and Restore](#backups-and-restore)
+- [Choosing a Setup](#choosing-a-setup)
 - [Limitations and Differences](#limitations-and-differences)
 - [Quick Reference for AI Consumers](#quick-reference-for-ai-consumers)
 
@@ -293,8 +294,12 @@ returning an empty value.
 
 **Test Reachability** — run it when the *Internet Reachability* health check is
 red and you want the underlying detail, or after changing a port forward. It
-queries the relay's own admin endpoint and reports whether HyperDHT considers the
-node firewalled, along with the version and caps the relay advertises to clients.
+queries the relay's own admin endpoint and reports whether peers can connect to it
+directly (firewalled, port unstable, or still learning its address, each with its
+own explanation), the address the relay believes the internet sees (*Seen from
+outside as*: `host:port`, `host (port changes per destination)`,
+`host:31562 (listens on 49737)` or *not known yet*), and the version and caps the
+relay advertises to clients.
 It distinguishes *measured* from *asserted*: with **Assume Reachable** on,
 `firewalled: false` is something the relay was told rather than something it
 found out, and the action says so instead of reporting success. Read-only,
@@ -331,7 +336,7 @@ third says who the relay admits.
 | Check                     | Method                            | Grace | Meaning                                              |
 | ------------------------- | --------------------------------- | ----- | ---------------------------------------------------- |
 | **Relay**                 | UDP 49737 listening (`/proc/net`) | 10 s  | The process is up and bound                          |
-| **Internet Reachability** | `GET /readyz` on 127.0.0.1:9200   | 120 s | 200 means listening, bootstrapped and not firewalled |
+| **Internet Reachability** | `GET /readyz` on 127.0.0.1:9200   | 120 s | `state: reachable`: listening, bootstrapped, not firewalled, with a stable public address |
 | **Access**                | `GET /status.json` on 127.0.0.1:9200 | —  | Public, private with its member count, or restricted |
 
 **Relay** failing means the process did not start or could not bind — check the
@@ -345,6 +350,21 @@ fix is a working UDP port forward — or *Assume Reachable*, if the host genuine
 has a public IP and it is the probe that is wrong. The long grace period is
 deliberate: the node has to join the DHT and have its address confirmed by other
 nodes before it can know, so red for the first minute or two means nothing.
+
+It also fails when the relay is not firewalled but its **port is unstable**
+(`state: port-unstable` from upstream 0.4.2): something between the relay and the
+internet rewrites its outbound UDP port, so HyperDHT stops advertising a public
+address and peers cannot connect directly. This used to read green. See
+[limitation 12](#limitations-and-differences).
+
+While the relay is re-learning its public address after an IP change
+(`state: unknown`), the check shows **loading**, not failure, for up to
+10 minutes (`UNKNOWN_GRACE_MS` in `startos/main.ts`), then fails. A home line with a
+dynamic IP goes through this on every reconnect; a server with a static IP never
+does. The timer lives in the health-check process, so a restart starts it over,
+which is right because the relay itself restarts through `starting`. Against an
+upstream older than 0.4.2, `/readyz` has no `state` and the check falls back to the
+`firewalled` flag alone.
 
 While it is failing the check is re-run every 30 seconds, not at the SDK's default
 of every second: each failure is a log line, and a firewalled relay stays that way
@@ -376,13 +396,41 @@ automatically — see the recursive chown under
 [Volume and Data Layout](#volume-and-data-layout) — and needs nothing re-entered.
 It raises no task. The port forward has to exist wherever it now runs.
 
+## Choosing a Setup
+
+A relay is at its best on a host with a public IP. Three setups work, in order of
+preference:
+
+1. **A server with a public IPv4 on its interface** (dedicated server, a VPS running
+   StartOS). Nothing to forward. Outbound Gateway: default.
+2. **A home router with a real public IPv4.** Forward UDP 49737 to the server, with
+   the **external port also 49737**: some routers silently pick another if that one
+   is taken, and a different external port shows as **Port unstable**. Outbound
+   Gateway: default. Expect *Internet Reachability* to show **loading** for a few
+   minutes after each public-IP change; if your ISP forces a daily reconnect, most
+   routers let you move it to a quiet hour.
+3. **No public IPv4** (CGNAT or DS-Lite, common on cable and mobile lines). No
+   forward is possible. Publish the relay through StartTunnel and set its Outbound
+   Gateway to StartTunnel as well (limitation 12). IPv6 does not help: the DHT is
+   IPv4-only.
+
+To tell 2 from 3, compare the router's WAN IPv4 with what an external "what is my
+IP" service shows. If they differ, or the WAN address is in `100.64.0.0/10`, you
+are in setup 3.
+
 ## Limitations and Differences
 
 1. **A home server behind NAT needs a port forward.** UDP 49737 must reach this
-   server. Nothing in StartOS can arrange that for you.
+   server. Nothing in StartOS can arrange that for you. Where the line has a real
+   public IPv4, a router forward is the most robust setup; StartTunnel is the
+   fallback behind CGNAT, with the Outbound Gateway set to match
+   ([Choosing a Setup](#choosing-a-setup)).
 2. **Symmetric NAT cannot be worked around.** If your router rewrites the port of
    outbound UDP, HyperDHT cannot keep a stable mapping and the relay stays
-   unusable. A host with a public IP is the only fix.
+   unusable. A host with a public IP is the only fix. A tunnel counts: anything
+   between the relay and the internet that rewrites its outbound port has the
+   same effect as a symmetric router, and shows as **Port unstable**
+   (limitation 12).
 3. **The external port must be 49737, not merely forwarded.** StartOS prefers
    49737 but falls back to another port if it is already taken, and a fallback
    cannot work: HyperDHT probes reachability by asking remote nodes to send
@@ -445,7 +493,9 @@ It raises no task. The port forward has to exist wherever it now runs.
    faster fix. Suspect this whenever reachability goes red with no configuration
    change, on a connection whose ISP forces periodic reconnects; check the
    *Status Page* for the public address the relay currently believes it has, and
-   whether your port forward matches it.
+   whether your port forward matches it. From upstream 0.4.2 the relay reports
+   the settling period as `state: unknown`, and *Internet Reachability* shows
+   **loading** rather than red for up to 10 minutes.
 10. **An install or update drops the Outbound Gateway, and neither a Restart nor
    a Stop/Start reliably brings it back.** Confirmed with a routing capture on a live box (2026-09-20). A
    package install or update gives the service a new LXC container with a new
@@ -474,6 +524,41 @@ It raises no task. The port forward has to exist wherever it now runs.
    in front of it. Exposing the *Status Page* interface on a public gateway
    publishes the relay's traffic counters and DHT state — see
    [Network Access and Interfaces](#network-access-and-interfaces).
+12. **The relay must send and receive through the same public gateway, and that
+   gateway must not rewrite its port.** Published on StartTunnel → Outbound
+   Gateway StartTunnel. Published on the router → Outbound Gateway default. A
+   mismatch receives on one IP and sends from another, and StartOS allows it
+   without a warning.
+
+   Even with matching gateways the outbound port can be rewritten on the way out.
+   In the case that prompted this limitation, the relay was published through
+   StartTunnel, and the server's own NAT into the tunnel rewrote the relay's
+   outbound source port after a network change; the tunnel then preserved the
+   rewritten port. Inbound traffic still arrived on 49737, so the old health check
+   stayed green while members could not connect: HyperDHT offers peers a direct
+   connection only when the port it is seen on is the port it listens on.
+
+   How to recognise it: *Internet Reachability* red with "outbound port is being
+   rewritten"; the status page shows **Port unstable**; `/readyz` and
+   `/status.json` report `state: "port-unstable"`, with either
+   `portRandomized: true` or a `publicPort` different from the listening port;
+   the relay log says `outbound UDP port is being rewritten`.
+
+   What to try, in order (cheapest and UI-only first; this is not a ranking of how
+   common each cause is):
+
+   1. **Gateway mismatch.** Set the Outbound Gateway to the gateway the relay's
+      public address is on. Recheck after every install or update (limitation 10).
+   2. **Stale NAT state after a network change.** Restart the relay. If it is
+      still red after about five minutes, clear and re-set the Outbound Gateway
+      (the limitation 10 procedure), then restart. With SSH:
+      `sudo conntrack -D -p udp -s <relay container IP>`.
+   3. **A NAT that really rewrites ports** (some CGNAT, some mobile routers, some
+      VPS NATs). Not fixable on this server: use a router forward on a line with a
+      public IPv4, or StartTunnel.
+
+   Which UI-only step reliably clears stale NAT state is not yet established; the
+   SSH command always does.
 
 ---
 

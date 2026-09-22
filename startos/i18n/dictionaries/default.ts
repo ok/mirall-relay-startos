@@ -56,6 +56,12 @@ const dict = {
   Version: 34,
   Labels: 35,
   Limits: 36,
+  'Port unstable: peers can reach the relay, but its outbound UDP port is rewritten on the way out, so they cannot connect to it directly. Check in this order: its Outbound Gateway must be the gateway its public address is on (StartTunnel if you publish through StartTunnel); restart the relay to clear stale NAT state; if it persists, the network in front of it rewrites ports, so use a router port forward on a public IPv4, or StartTunnel. See Limitations in the instructions.': 73,
+  'Still learning its public address, as after a change of your public IP. Try again in a few minutes.': 74,
+  'Seen from outside as': 75,
+  'not known yet': 76,
+  'port changes per destination': 77,
+  'listens on': 78,
 
   // init/initializeService.ts
 
@@ -72,6 +78,9 @@ const dict = {
   'The relay is listening': 45,
   'The relay is not listening': 46,
   'Internet Reachability': 47,
+  'Reachable, but its outbound port is being rewritten, so peers cannot connect to it directly. If you publish the relay through StartTunnel, set its Outbound Gateway to StartTunnel too. Otherwise restart the relay; if it stays red, see Limitations in the instructions.': 70,
+  'Re-learning its public address after a network change. This normally takes a few minutes.': 71,
+  'Its public address has not settled for over 10 minutes, so peers cannot connect to it directly. Check the Outbound Gateway and your internet connection; see Limitations in the instructions.': 72,
   'Relay UI': 48,
   'The relay’s pages in one place: status — public key, reachability, traffic — and Members, where invites are created and revoked with the admin token.': 49,
   'Running, but reachability was asserted rather than measured — "Assume Reachable" is on. Confirm it from another machine.': 50,

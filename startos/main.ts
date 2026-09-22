@@ -53,12 +53,46 @@ function relayEnv(store: StoreShape | null): Record<string, string> {
   return env
 }
 
-// /readyz is 200 only when the relay is listening, bootstrapped and NOT
-// firewalled — exactly the condition that makes a relay useful, and the one a
-// home server behind an unforwarded router fails.
+// A home line with a dynamic IP re-learns its public address for a few minutes
+// after every reconnect, and a static-IP server never enters this state. About
+// three times the one re-learn time observed; long enough that a daily
+// reconnect is not an alarm, short enough that an address that never settles is.
+const UNKNOWN_GRACE_MS = 10 * 60_000
+
+let unknownSince: number | null = null
+
+// /readyz's `state` is 'reachable' only when the relay is listening,
+// bootstrapped, not firewalled AND has a stable public address — the condition
+// that makes a relay useful. Before upstream 0.4.2 there is no `state`, and the
+// firewalled flag is all there is.
 async function checkReachability(): Promise<HealthResult> {
   try {
-    const { ready, firewalled, probed } = await fetchReadyz()
+    const { ready, state, firewalled, probed } = await fetchReadyz()
+    if (state !== 'unknown') unknownSince = null
+    if (state === 'port-unstable') {
+      return {
+        result: 'failure',
+        message: i18n(
+          'Reachable, but its outbound port is being rewritten, so peers cannot connect to it directly. If you publish the relay through StartTunnel, set its Outbound Gateway to StartTunnel too. Otherwise restart the relay; if it stays red, see Limitations in the instructions.',
+        ),
+      }
+    }
+    if (state === 'unknown') {
+      unknownSince ??= Date.now()
+      return Date.now() - unknownSince < UNKNOWN_GRACE_MS
+        ? {
+            result: 'loading',
+            message: i18n(
+              'Re-learning its public address after a network change. This normally takes a few minutes.',
+            ),
+          }
+        : {
+            result: 'failure',
+            message: i18n(
+              'Its public address has not settled for over 10 minutes, so peers cannot connect to it directly. Check the Outbound Gateway and your internet connection; see Limitations in the instructions.',
+            ),
+          }
+    }
     if (ready && firewalled === false) {
       // `firewalled: false` is forced by ASSUME_REACHABLE, so on its own it is
       // not evidence. Saying "peers can reach this relay" on an unprobed node
