@@ -9,17 +9,19 @@ You've installed a relay for [Mirall](https://mirall.app). It connects two Miral
 
 ## Getting set up
 
-**1. Make UDP port 49737 reach this server.**
+**1. Make the relay reachable from the internet.**
 
-This is the whole job, and it's the one thing StartOS can't do for you. Peers connect to the relay directly over UDP after a hole punch, so the port has to arrive here:
+This is the whole job. StartOS installs the relay reachable from your LAN only: its public addresses are **off** until you switch one on, under **Interfaces → Relay Endpoint**. Pick one:
 
-- **Server with a public IP** (VPS, colo): nothing to do, beyond any firewall it has.
-- **Home server behind a router with a public IPv4**: forward UDP 49737 to this server. Check the **Relay Endpoint** interface on the Dashboard first — StartOS prefers port 49737 but will pick another if it's taken, and you forward the one shown there. The router's external port must be 49737 too.
-- **No public IPv4** (CGNAT or DS-Lite, common on cable and mobile): a forward is impossible. Publish the relay through StartTunnel instead — see below.
+- **Server with a public IP of its own** (VPS, colo): switch on its **Public** address. Nothing else to do, beyond any firewall it has.
+- **Home server: use StartTunnel (recommended).** A StartTunnel gateway gives the relay a fixed public IP, needs no change on your router, and works behind CGNAT. Switch on the **Public** address listed under your StartTunnel gateway, then set the relay's **Outbound Gateway** (Actions → Set Outbound Gateway) to StartTunnel too.
+- **Home server with a public IP that never changes: your router.** Forward UDP 49737 on the router to this server, with the router's external port also 49737, and switch on the **Public** address listed under your router's connection. Only do this if your ISP gave you a static IP: StartOS switches a public address on for one IP, so when your ISP hands you a new one, the new address arrives switched **off** and the relay is unreachable until you switch it on again.
+
+Check the **Relay Endpoint** interface for the port: StartOS prefers 49737 but picks another if it's taken, and the relay needs exactly 49737.
 
 ### Publishing through StartTunnel
 
-The relay must send and receive through the same gateway. If its public address is on StartTunnel, set its **Outbound Gateway** to StartTunnel too; if it is on your router, leave the Outbound Gateway at the default. A mismatch makes the relay unreachable, and StartOS does not warn you about it. See *Limitations* 12 in the package README.
+The relay must send and receive through the same gateway. If its public address is on StartTunnel, set its **Outbound Gateway** to StartTunnel too; if it is on your router, leave the Outbound Gateway at the default. A mismatch makes the relay unreachable, and StartOS does not warn you about it. After every install or update of the relay, check the Outbound Gateway again (*Limitations* 10 in the package README).
 
 **2. Copy the relay's public key.**
 
@@ -43,7 +45,7 @@ For more detail, run **Test Reachability**: it reports whether peers can connect
 
 **If it shows *loading* with "Re-learning its public address"**, your public IP just changed. That normally settles within a few minutes; it turns red only if it takes longer than 10.
 
-**If reachability goes red on its own, restart the service first.** Many home connections are given a new public IP by the ISP every so often, and when that happens the relay keeps reporting *firewalled* for a while even though your port forward is fine — it's still probing the address it used to have. It does sort itself out eventually, but that can take an hour or more; restarting re-checks straight away.
+**If reachability goes red on its own and you publish through your router, check Interfaces → Relay Endpoint first.** When your ISP gives your connection a new public IP, the Public address for the new IP appears switched **off**, so StartOS stops forwarding to the relay. Switch it on; restarting does not help. If this happens to you regularly, move the relay to StartTunnel (step 1).
 
 **If it goes red right after an update and you use an Outbound Gateway, set the gateway again — a Restart alone is not enough.** This applies if you expose the relay through a tunnel (StartTunnel or similar) and set an outbound gateway for it. Installing or updating gives the service a fresh container, and StartOS currently does not re-apply the outbound gateway to it, so the relay's traffic leaves through your home connection instead of the tunnel and the reachability check tests the wrong address. The tell is on the **Status Page**: *Seen from outside as* shows your home IP rather than the tunnel's. To fix it, open the service's **Set Outbound Gateway** action, switch it back to the default, save, then set your tunnel gateway again and save. Setting the same gateway without clearing it first does nothing. Then **Restart** the relay and it is reachable again within about a minute. Without the restart the relay still recovers by itself from 0.4.0:1 on, but that can take half an hour. Stopping and starting the service does not reliably bring the gateway back.
 

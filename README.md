@@ -198,8 +198,10 @@ needs.
 
 Tor and `.local` addresses are meaningless here: peers reach the relay by UDP at
 its public IP, not by hostname. What matters is that **UDP 49737 arrives at this
-server** — forward it on your router, or run the service on a host with a public
-IP.
+server**. StartOS enables LAN addresses only, so switch on a **Public** address
+under *Interfaces → Relay Endpoint*: StartTunnel's (with the Outbound Gateway set
+to match), a router's (with the port forwarded), or a public-IP host's
+([Choosing a Setup](#choosing-a-setup)).
 
 The relay binds its admin server to `0.0.0.0` inside the container
 (`MIRALL_RELAY_ADMIN_HOST`) so the StartOS proxy can serve the status page; the
@@ -346,8 +348,9 @@ or key list rather than starting with a bad value.
 **Internet Reachability** failing is the common case and usually not a fault in
 the package. It reports a failure when HyperDHT finds the relay firewalled; a
 firewalled relay serves 503 on `/readyz` upstream too, and bridges nothing. The
-fix is a working UDP port forward — or *Assume Reachable*, if the host genuinely
-has a public IP and it is the probe that is wrong. The long grace period is
+fix is a switched-on Public address with a working path to it (StartTunnel with
+a matching Outbound Gateway, or a router forward), or *Assume Reachable* if the
+host genuinely has a public IP and it is the probe that is wrong. The long grace period is
 deliberate: the node has to join the DHT and have its address confirmed by other
 nodes before it can know, so red for the first minute or two means nothing.
 
@@ -398,33 +401,39 @@ It raises no task. The port forward has to exist wherever it now runs.
 
 ## Choosing a Setup
 
-A relay is at its best on a host with a public IP. Three setups work, in order of
-preference:
+A relay is at its best on a host with a public IP. StartOS installs every
+interface with its public addresses **off** (only LAN addresses are on), and the
+SDK gives a package no way to change that, so every setup below includes switching
+a **Public** address on under *Interfaces → Relay Endpoint*. Three setups work, in
+order of preference:
 
 1. **A server with a public IPv4 on its interface** (dedicated server, a VPS running
-   StartOS). Nothing to forward. Outbound Gateway: default.
-2. **A home router with a real public IPv4.** Forward UDP 49737 to the server, with
-   the **external port also 49737**: some routers silently pick another if that one
-   is taken, and a different external port shows as **Port unstable**. Outbound
-   Gateway: default. Expect *Internet Reachability* to show **loading** for a few
-   minutes after each public-IP change; if your ISP forces a daily reconnect, most
-   routers let you move it to a quiet hour.
-3. **No public IPv4** (CGNAT or DS-Lite, common on cable and mobile lines). No
-   forward is possible. Publish the relay through StartTunnel and set its Outbound
-   Gateway to StartTunnel as well (limitation 12). IPv6 does not help: the DHT is
-   IPv4-only.
+   StartOS). Switch on its Public address. Nothing to forward. Outbound Gateway:
+   default.
+2. **A home server published through StartTunnel** (recommended for home
+   servers). The VPS's IP is fixed, no router change is needed, and it works behind
+   CGNAT and DS-Lite. Switch on the Public address under the StartTunnel gateway and
+   set the Outbound Gateway to StartTunnel as well (limitation 12). Recheck the
+   Outbound Gateway after every install or update (limitation 10).
+3. **A home router, only with a static public IPv4.** Forward UDP 49737 to the
+   server, with the **external port also 49737** (some routers silently pick
+   another if that one is taken, and a different external port shows as **Port
+   unstable**), and switch on the Public address under the router's gateway.
+   Outbound Gateway: default. On a line whose IP changes this setup breaks at every
+   change (limitation 9), so use setup 2 there.
 
-To tell 2 from 3, compare the router's WAN IPv4 with what an external "what is my
-IP" service shows. If they differ, or the WAN address is in `100.64.0.0/10`, you
-are in setup 3.
+Behind CGNAT or DS-Lite (the router's WAN IPv4 differs from what an external "what
+is my IP" service shows, or is in `100.64.0.0/10`), setup 3 is impossible and
+setup 2 is the only option. IPv6 does not help: the DHT is IPv4-only.
 
 ## Limitations and Differences
 
-1. **A home server behind NAT needs a port forward.** UDP 49737 must reach this
-   server. Nothing in StartOS can arrange that for you. Where the line has a real
-   public IPv4, a router forward is the most robust setup; StartTunnel is the
-   fallback behind CGNAT, with the Outbound Gateway set to match
-   ([Choosing a Setup](#choosing-a-setup)).
+1. **The relay is not public until the user makes it so.** StartOS enables LAN
+   addresses only; a Public address must be switched on by hand, and on a home
+   router the port forwarded too. The package cannot do either. For a home server,
+   StartTunnel is the recommended setup, and a router forward only suits a static
+   public IPv4 ([Choosing a Setup](#choosing-a-setup)). The *Internet Reachability*
+   failure message says so.
 2. **Symmetric NAT cannot be worked around.** If your router rewrites the port of
    outbound UDP, HyperDHT cannot keep a stable mapping and the relay stays
    unusable. A host with a public IP is the only fix. A tunnel counts: anything
@@ -483,19 +492,19 @@ are in setup 3.
    `--max-link-ms`, `--max-pending`, `--session-rate`, `--over-rate-grace-ms`,
    `--meter-ms`, `--admin-write` and `--admin-ui` are left at their
    upstream defaults and have no form field.
-9. **A changed WAN address makes reachability red for a while.** HyperDHT
-   decides `firewalled` by probing the public address it has observed, so when
-   the line reconnects on a new IP the verdict is stale until the node
-   re-establishes what its address is. It *does* recover unattended — one
-   instance was observed going from `firewalled: true` to `false` across roughly
-   an hour and a half with no restart, tracking the address change — but not
-   quickly. Restarting the service forces an immediate re-measure and is the
-   faster fix. Suspect this whenever reachability goes red with no configuration
-   change, on a connection whose ISP forces periodic reconnects; check the
-   *Status Page* for the public address the relay currently believes it has, and
-   whether your port forward matches it. From upstream 0.4.2 the relay reports
-   the settling period as `state: unknown`, and *Internet Reachability* shows
-   **loading** rather than red for up to 10 minutes.
+9. **A changed WAN IP switches the relay's router address off.** StartOS
+   records an enabled Public address as a literal IP (`addresses.enabled` holds
+   e.g. `"87.122.156.81:49737"`), so when the ISP assigns a new IP the new address
+   appears in *Interfaces* switched **off**, and StartOS forwards the port from the
+   LAN only. The relay then reads firewalled until someone switches the new address
+   on; a restart does not help. Seen on 2026-09-22 after a daily reconnect. The
+   old address also stays listed as enabled in the database, invisible in the UI.
+   StartOS's own docs note there is no dynamic-DNS equivalent for raw IPs. Mirall
+   peers find the relay by key, so nothing else depends on the IP; this is purely
+   the forward being dropped. Use StartTunnel on any line whose IP changes. While
+   the DHT re-learns an address after a change, upstream 0.4.2 reports
+   `state: unknown` and *Internet Reachability* shows **loading** for up to
+   10 minutes.
 10. **An install or update drops the Outbound Gateway, and neither a Restart nor
    a Stop/Start reliably brings it back.** Confirmed with a routing capture on a live box (2026-09-20). A
    package install or update gives the service a new LXC container with a new

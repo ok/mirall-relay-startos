@@ -65,7 +65,7 @@ export const testReachability = sdk.Action.withoutInput(
       ? i18n('The relay is still starting up. Try again in a minute.')
       : firewalled
         ? i18n(
-            'Firewalled: peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.',
+            'Firewalled: peers cannot reach this relay. Switch on a Public address under Interfaces → Relay Endpoint: StartTunnel, with the Outbound Gateway set to StartTunnel too, or your router, with UDP 49737 forwarded to this server. If the server has a public IP of its own and it still fails, turn on "Assume Reachable".',
           )
         : state === 'port-unstable'
           ? i18n(

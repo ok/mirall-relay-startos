@@ -47,7 +47,7 @@ const dict = {
   'Test Reachability': 25,
   'Ask the relay whether the internet can reach it, and show the limits it advertises.': 26,
   'The relay is still starting up. Try again in a minute.': 27,
-  'Firewalled: peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.': 28,
+  'Firewalled: peers cannot reach this relay. Switch on a Public address under Interfaces → Relay Endpoint: StartTunnel, with the Outbound Gateway set to StartTunnel too, or your router, with UDP 49737 forwarded to this server. If the server has a public IP of its own and it still fails, turn on "Assume Reachable".': 28,
   'Reachable: the relay is bridging connections.': 29,
   Reachability: 30,
   'Reachable from the internet': 31,
@@ -71,7 +71,7 @@ const dict = {
 
   // main.ts
   'Peers on the internet can reach this relay': 40,
-  'Peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.': 41,
+  'Peers cannot reach this relay. Switch on a Public address under Interfaces → Relay Endpoint: StartTunnel, with the Outbound Gateway set to StartTunnel too, or your router, with UDP 49737 forwarded to this server. See the instructions.': 41,
   'Joining the DHT and probing reachability': 42,
   'Waiting for the relay to answer': 43,
   Relay: 44,

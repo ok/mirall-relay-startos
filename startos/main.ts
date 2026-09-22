@@ -113,7 +113,7 @@ async function checkReachability(): Promise<HealthResult> {
       return {
         result: 'failure',
         message: i18n(
-          'Peers cannot reach this relay. Forward UDP port 49737 to this server, or turn on "Assume Reachable" if it already has a public IP.',
+          'Peers cannot reach this relay. Switch on a Public address under Interfaces → Relay Endpoint: StartTunnel, with the Outbound Gateway set to StartTunnel too, or your router, with UDP 49737 forwarded to this server. See the instructions.',
         ),
       }
     }
