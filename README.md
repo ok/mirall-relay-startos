@@ -540,12 +540,18 @@ setup 2 is the only option. IPv6 does not help: the DHT is IPv4-only.
    without a warning.
 
    Even with matching gateways the outbound port can be rewritten on the way out.
-   In the case that prompted this limitation, the relay was published through
-   StartTunnel, and the server's own NAT into the tunnel rewrote the relay's
-   outbound source port after a network change; the tunnel then preserved the
-   rewritten port. Inbound traffic still arrived on 49737, so the old health check
-   stayed green while members could not connect: HyperDHT offers peers a direct
-   connection only when the port it is seen on is the port it listens on.
+   A port forward used to be inbound-only on both StartOS and StartTunnel: the
+   relay's outbound flows went through a generic masquerade, which picks a new
+   source port whenever 49737 clashes with an existing NAT mapping, and every
+   later flow then inherits that port. StartOS **0.4.0.2** and StartTunnel
+   **1.3.1** pin a forward's outbound UDP source port to its external port
+   ([start-technologies#4104](https://github.com/Start9Labs/start-technologies/pull/4104)).
+   Both hops need the fix: on 2026-10-17 a box already on 0.4.0.2 still went red
+   because its StartTunnel server ran 1.3.0 and sent 40 of 42 outbound flows from
+   port 4178. Updating StartTunnel to 1.3.1 cleared it. Inbound traffic still
+   arrived on 49737 throughout, because HyperDHT offers peers a direct connection
+   only when the port it is seen on is the port it listens on, and an
+   inbound-only check cannot see the rewrite.
 
    How to recognise it: *Internet Reachability* red with "outbound port is being
    rewritten"; the status page shows **Port unstable**; `/readyz` and
@@ -558,11 +564,18 @@ setup 2 is the only option. IPv6 does not help: the DHT is IPv4-only.
 
    1. **Gateway mismatch.** Set the Outbound Gateway to the gateway the relay's
       public address is on. Recheck after every install or update (limitation 10).
-   2. **Stale NAT state after a network change.** Restart the relay. If it is
+   2. **StartOS older than 0.4.0.2, or StartTunnel older than 1.3.1.** Update
+      whichever is behind (StartTunnel: *Settings → Version → Check for Updates*,
+      or `start-tunnel update apply` as root on the server), then restart the
+      relay. With SSH, the hop doing the rewriting shows up in conntrack: on the
+      box, `sudo conntrack -L -p udp -s <relay container IP>`; on the StartTunnel
+      server, `sudo conntrack -L -p udp -s <the box's tunnel IP>`. In each, a
+      reply tuple whose `dport` is not 49737 is a rewritten flow.
+   3. **Stale NAT state after a network change.** Restart the relay. If it is
       still red after about five minutes, clear and re-set the Outbound Gateway
       (the limitation 10 procedure), then restart. With SSH:
       `sudo conntrack -D -p udp -s <relay container IP>`.
-   3. **A NAT that really rewrites ports** (some CGNAT, some mobile routers, some
+   4. **A NAT that really rewrites ports** (some CGNAT, some mobile routers, some
       VPS NATs). Not fixable on this server: use a router forward on a line with a
       public IPv4, or StartTunnel.
 

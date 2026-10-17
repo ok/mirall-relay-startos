@@ -73,7 +73,7 @@ async function checkReachability(): Promise<HealthResult> {
       return {
         result: 'failure',
         message: i18n(
-          'Reachable, but its outbound port is being rewritten, so peers cannot connect to it directly. If you publish the relay through StartTunnel, set its Outbound Gateway to StartTunnel too. Otherwise restart the relay; if it stays red, see Limitations in the instructions.',
+          'Reachable, but its outbound port is being rewritten, so peers cannot connect to it directly. If you publish the relay through StartTunnel, set its Outbound Gateway to StartTunnel too. StartOS before 0.4.0.2 and StartTunnel before 1.3.1 rewrite the port themselves, so update whichever is behind. If none of this applies, restart the relay; if it stays red, see Limitations in the instructions.',
         ),
       }
     }
