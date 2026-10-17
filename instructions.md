@@ -41,7 +41,7 @@ Give it a couple of minutes after starting: the relay has to join the DHT and ha
 
 For more detail, run **Test Reachability**: it reports whether peers can connect to the relay directly and, if not, why; the address the internet sees it at; and the version and limits it advertises to clients.
 
-**If it says the port is unstable**, peers can reach the relay but something rewrites its outbound port on the way out, so they cannot connect to it. Try, in order: make the **Outbound Gateway** the same gateway its public address is on; restart the relay; if it stays red, see *Limitations* 12 in the package README.
+**If it says the port is unstable**, peers can reach the relay but something rewrites its outbound port on the way out, so they cannot connect to it. Try, in order: make the **Outbound Gateway** the same gateway its public address is on; make sure StartOS is on 0.4.0.2 or later and, if you use StartTunnel, that StartTunnel is on 1.3.1 or later (*Settings → Version → Check for Updates*), because earlier versions rewrite the port themselves; restart the relay; if it stays red, see *Limitations* 12 in the package README.
 
 **If it shows *loading* with "Re-learning its public address"**, your public IP just changed. That normally settles within a few minutes; it turns red only if it takes longer than 10.
 
