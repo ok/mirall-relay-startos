@@ -69,7 +69,7 @@ export const testReachability = sdk.Action.withoutInput(
           )
         : state === 'port-unstable'
           ? i18n(
-              'Port unstable: peers can reach the relay, but its outbound UDP port is rewritten on the way out, so they cannot connect to it directly. Check in this order: its Outbound Gateway must be the gateway its public address is on (StartTunnel if you publish through StartTunnel); restart the relay to clear stale NAT state; if it persists, the network in front of it rewrites ports, so use a router port forward on a public IPv4, or StartTunnel. See Limitations in the instructions.',
+              'Port unstable: peers can reach the relay, but its outbound UDP port is rewritten on the way out, so they cannot connect to it directly. Check in this order: its Outbound Gateway must be the gateway its public address is on (StartTunnel if you publish through StartTunnel); StartOS must be 0.4.0.2 or later and StartTunnel 1.3.1 or later, as earlier versions rewrite the port themselves; restart the relay to clear stale NAT state; if it persists, the network in front of it rewrites ports, so use a router port forward on a public IPv4, or StartTunnel. See Limitations in the instructions.',
             )
           : state === 'unknown'
             ? i18n(
